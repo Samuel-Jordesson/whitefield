@@ -1,0 +1,12 @@
+{
+  "name": "whitefield",
+  "version": "1.0.0",
+  "description": "FPS 3D com sprites 2D, com salas online na rede local",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
+  }
+}

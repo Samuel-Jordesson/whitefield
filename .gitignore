@@ -1,0 +1,37 @@
+# dependencias (voltam com `npm install`)
+node_modules/
+
+# logs e lixo de execucao
+*.log
+npm-debug.log*
+.npm/
+
+# variaveis de ambiente (se um dia usar)
+.env
+.env.*
+
+# arquivos de teste que eu crio na raiz durante o desenvolvimento
+_*.mjs
+_*.js
+test.html
+
+# sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# editores
+.vscode/
+.idea/
+*.swp
+*~
+
+# se um dia empacotar com Electron
+dist/
+build/
+out/
+release/
+
+# OBS: vendor/three.module.js e fonts/*.woff2 ficam no repositorio de proposito —
+# sao o que faz o jogo abrir sem internet. As imagens (arma, personagens,
+# caixa, itens, fundo) tambem sao parte do jogo e devem ser versionadas.

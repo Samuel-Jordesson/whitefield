@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>WHITEFIELD — FPS online</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%94%AB%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<!-- ---------------- HUD da partida ---------------- -->
+<div id="hud" class="hidden">
+  <div id="crosshair">
+    <span class="ch ch-t"></span>
+    <span class="ch ch-b"></span>
+    <span class="ch ch-l"></span>
+    <span class="ch ch-r"></span>
+    <span id="hitmarker">✕</span>
+  </div>
+
+  <div id="stats">
+    <div class="stat"><span class="label">VIDA</span><span id="health">100</span></div>
+    <div class="stat"><span class="label">ABATES</span><span id="kills">0</span></div>
+  </div>
+
+  <div id="teamBars">
+    <div class="tb" data-team="A">
+      <span class="tb-name">TIME A</span>
+      <div class="tb-track"><i id="barA"></i></div>
+      <span class="tb-num" id="numA">0</span>
+    </div>
+    <div class="tb" data-team="B">
+      <span class="tb-num" id="numB">0</span>
+      <div class="tb-track right"><i id="barB"></i></div>
+      <span class="tb-name">TIME B</span>
+    </div>
+  </div>
+
+  <div id="scoreboard"></div>
+  <div id="killfeed"></div>
+
+  <div id="ammoBox">
+    <span id="ammo">12</span><span id="ammoMax">/12</span>
+    <div id="reloading">RECARREGANDO…</div>
+    <div id="weaponName">Rifle</div>
+  </div>
+
+  <div id="bagHud"></div>
+  <div id="gunHud"></div>
+  <div id="lootPrompt" class="hidden"><b>E</b> abrir caixa</div>
+  <div id="dropPrompt" class="hidden"><b>E</b> pegar</div>
+
+  <div id="cigarroHud" class="hidden"></div>
+  <div id="damage"></div>
+</div>
+
+<!-- baforada do cigarro -->
+<div id="fumaca" class="hidden"></div>
+
+<!-- ---------------- arma em primeira pessoa ---------------- -->
+<div id="weaponWrap" class="hidden">
+  <img id="weapon" src="arma.png" alt="arma" draggable="false">
+  <img id="weaponItem" class="hidden" alt="" draggable="false">
+  <div id="muzzle"></div>
+</div>
+
+<!-- mira (botao direito): a arma sai e voce olha pela janela da mira -->
+<div id="scopeWrap" class="hidden">
+  <img id="scope" src="mira.png" alt="mira" draggable="false">
+  <div id="muzzleAds"></div>
+</div>
+
+<!-- ---------------- telas ---------------- -->
+<div id="screens">
+
+  <!-- menu inicial -->
+  <section id="screen-home" class="screen screen-full">
+    <div id="menu">
+      <div id="menuFundo"></div>
+
+      <header id="perfil">
+        <div class="perfil-id">
+          <input id="perfilNome" maxlength="16" placeholder="seu nome" autocomplete="off">
+          <div class="perfil-xp">
+            <span class="perfil-nivel">NIVEL <b id="perfilNivel">1</b></span>
+            <div class="perfil-barra"><i id="perfilBarra"></i></div>
+            <span id="perfilXp">0 / 100 XP</span>
+          </div>
+        </div>
+        <div class="perfil-grana">
+          <span class="moeda">◉</span><b id="perfilDinheiro">0</b>
+        </div>
+      </header>
+
+      <div id="menuCorpo">
+        <nav id="menuAbas">
+          <button class="aba destaque" data-aba="solo">JOGAR SOLO</button>
+          <button class="aba" data-aba="entrar">ENTRAR SALA</button>
+          <button class="aba" data-aba="criar">CRIAR SALA</button>
+          <button class="aba" data-aba="fundo">PLANO DE FUNDO</button>
+          <button class="aba" data-aba="operador">OPERADOR</button>
+          <button class="aba" data-aba="loja">LOJA</button>
+          <button class="aba" data-aba="config">CONFIGURACOES</button>
+      </nav>
+
+      <div id="menuPagina" class="hidden">
+        <div id="menuPainel"></div>
+        <div class="row"><button id="btnMenuVoltar">VOLTAR</button></div>
+      </div>
+      </div>
+
+      <div id="menuMarca">WHITEFIELD</div>
+    </div>
+  </section>
+
+  <!-- sala de espera -->
+  <section id="screen-lobby" class="screen hidden">
+    <h2>SALA</h2>
+    <p class="sub">mande esse codigo para o outro jogador</p>
+    <div class="code-box">
+      <span id="roomCode">-----</span>
+      <button id="btnCopy">COPIAR</button>
+    </div>
+    <p class="count"><b id="playerCount">1</b> <span id="playerCountLabel">jogador na sala</span></p>
+
+    <p class="team-call">escolha seu time</p>
+    <div class="teams">
+      <button class="team" data-team="A">
+        <span class="team-name">TIME A</span>
+        <ul class="team-list" id="teamListA"></ul>
+        <span class="team-tag"></span>
+      </button>
+      <button class="team" data-team="B">
+        <span class="team-name">TIME B</span>
+        <ul class="team-list" id="teamListB"></ul>
+        <span class="team-tag"></span>
+      </button>
+    </div>
+    <div class="row">
+      <button id="btnStart" class="primary">INICIAR PARTIDA</button>
+      <button id="btnLeave">SAIR</button>
+    </div>
+    <p class="hint" id="lobbyHint">da pra comecar sozinho para treinar</p>
+    <p class="hint">quem chegar em <b>50 abates</b> primeiro ganha</p>
+  </section>
+
+  <!-- escolha de personagem -->
+  <section id="screen-select" class="screen hidden">
+    <h2>ESCOLHA SEU PERSONAGEM</h2>
+    <p class="sub">a partida comeca quando todo mundo escolher</p>
+    <div class="chars">
+      <button class="char" data-char="1">
+        <img src="perssonagem1/parado.png" alt="Personagem 1" draggable="false">
+        <span class="char-name">PERSONAGEM 1</span>
+        <span class="char-tag"></span>
+      </button>
+      <button class="char" data-char="2">
+        <img src="perssonagem2/parado.png" alt="Personagem 2" draggable="false">
+        <span class="char-name">PERSONAGEM 2</span>
+        <span class="char-tag"></span>
+      </button>
+    </div>
+    <p class="hint" id="selectHint">clique em um dos dois</p>
+  </section>
+
+  <!-- fim de partida -->
+  <section id="screen-end" class="screen hidden">
+    <h2 id="endTitle">TIME A VENCEU</h2>
+    <p class="sub" id="endSub">50 x 0</p>
+    <ul id="endPremio" class="premio"></ul>
+    <div class="row">
+      <button id="btnEndOk" class="primary">VOLTAR PARA A SALA</button>
+    </div>
+  </section>
+
+  <!-- pausa -->
+  <section id="screen-pause" class="screen hidden">
+    <div id="pausaMenu">
+      <h2 id="pauseTitle">PAUSA</h2>
+      <p class="sub" id="pauseSub">partida em andamento</p>
+      <div class="pausa-opcoes">
+        <button id="btnResume" class="primary">CONTINUAR</button>
+        <button id="btnPauseConfig">CONFIGURACOES</button>
+        <button id="btnQuit">SAIR DO JOGO</button>
+      </div>
+      <ul class="keys">
+      <li><b>W A S D</b> mover</li>
+      <li><b>Mouse</b> olhar</li>
+      <li><b>Botao esquerdo</b> atirar</li>
+      <li><b>Botao direito</b> mirar (zoom)</li>
+      <li><b>1 / 2 · roda</b> trocar de arma</li>
+      <li><b>E</b> abrir caixa</li>
+      <li><b>G</b> granada na mao</li>
+      <li><b>Q</b> usar curativo</li>
+      <li><b>C</b> acender cigarro</li>
+      <li><b>3</b> faca</li>
+      <li><b>Shift</b> correr · <b>Espaco</b> pular</li>
+        <li><b>R</b> recarregar · <b>Tab</b> placar</li>
+      </ul>
+    </div>
+
+    <div id="pausaConfig" class="hidden">
+      <div id="pausaConfigPainel"></div>
+      <div class="row"><button id="btnPauseVoltar" class="primary">VOLTAR</button></div>
+    </div>
+  </section>
+
+</div>
+
+<!-- saque: arraste os itens da caixa para a mochila -->
+<div id="lootPanel" class="hidden">
+  <div class="loot-inner">
+    <div class="loot-col hidden" id="boxCol">
+      <h3>CAIXA</h3>
+      <div id="boxGrid" class="grid"></div>
+    </div>
+    <div class="loot-col">
+      <h3>MOCHILA <small>9 espacos</small></h3>
+      <div id="bagGrid" class="grid grid-9"></div>
+
+      <h3 class="mt">ARMAS <small>so cabem 2</small></h3>
+      <div id="gunGrid" class="grid grid-2"></div>
+    </div>
+    <div class="loot-col">
+      <h3>JOGAR FORA</h3>
+      <div id="trash">
+        <span>arraste aqui</span>
+        <small>o item cai no chao</small>
+      </div>
+    </div>
+  </div>
+  <p class="loot-hint">arraste para mover · <b>I</b>, <b>E</b> ou <b>ESC</b> para fechar</p>
+</div>
+<div id="dragGhost" class="hidden"></div>
+
+<div id="respawn" class="hidden">
+  <div class="respawn-inner">
+    <h2 id="respawnTitle">VOCE MORREU</h2>
+    <p id="respawnSub">renascendo em 3…</p>
+  </div>
+</div>
+
+<div id="loading">carregando…</div>
+<div id="toast"></div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,293 @@
+import { OPERADORES, FUNDOS, xpDoNivel } from './profile.js';
+import { OPCOES } from './settings.js';
+
+// Menu inicial no estilo dos Call of Duty: abas na lateral, painel ao lado e
+// a arte de fundo cobrindo a tela.
+
+const LOJA = [
+  { id: 'skin-rifle-riscado', nome: 'Rifle Riscado', tipo: 'Skin de arma', preco: 40 },
+  { id: 'skin-pistola-carvao', nome: 'Pistola Carvao', tipo: 'Skin de arma', preco: 35 },
+  { id: 'acessorio-bandana', nome: 'Bandana', tipo: 'Acessorio', preco: 25 },
+  { id: 'acessorio-oculos', nome: 'Oculos escuros', tipo: 'Acessorio', preco: 30 },
+  { id: 'granada-fumaca', nome: 'Granada de fumaca', tipo: 'Item', preco: 50, embreve: true },
+  { id: 'passe', nome: 'Passe de temporada', tipo: 'Em breve', preco: 0, embreve: true },
+];
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+export class Menu {
+  constructor({ profile, settings, onCriarSala, onEntrarSala, onJogarSolo, toast }) {
+    this.profile = profile;
+    this.settings = settings;
+    this.onCriarSala = onCriarSala;
+    this.onEntrarSala = onEntrarSala;
+    this.onJogarSolo = onJogarSolo;
+    this.toast = toast;
+    this.aba = 'entrar';
+
+    this.el = {
+      raiz: $('menu'),
+      fundo: $('menuFundo'),
+      abas: $('menuAbas'),
+      pagina: $('menuPagina'),
+      painel: $('menuPainel'),
+      nome: $('perfilNome'),
+      nivel: $('perfilNivel'),
+      barra: $('perfilBarra'),
+      xp: $('perfilXp'),
+      dinheiro: $('perfilDinheiro'),
+    };
+
+    this.el.abas.addEventListener('click', (e) => {
+      const b = e.target.closest('.aba');
+      if (b) this.abrir(b.dataset.aba);
+    });
+
+    this.el.nome.addEventListener('change', () => {
+      this.profile.nome = this.el.nome.value.trim() || 'Jogador';
+      this.renderPerfil();
+    });
+
+    $('btnMenuVoltar').onclick = () => this.fechar();
+
+    this.profile.aoMudar(() => this.renderPerfil());
+    this.renderPerfil();
+    this.fechar();
+  }
+
+  // volta para a lista de abas (a arte de fundo fica livre)
+  fechar() {
+    this.aba = null;
+    this.el.abas.classList.remove('hidden');
+    this.el.pagina.classList.add('hidden');
+    for (const b of this.el.abas.querySelectorAll('.aba')) b.classList.remove('ativa');
+  }
+
+  renderPerfil() {
+    const p = this.profile;
+    if (document.activeElement !== this.el.nome) this.el.nome.value = p.dados.nome;
+    this.el.nivel.textContent = p.nivel;
+    this.el.barra.style.width = Math.min(100, p.progresso * 100) + '%';
+    this.el.xp.textContent = `${p.xp} / ${xpDoNivel(p.nivel)} XP`;
+    this.el.dinheiro.textContent = p.dinheiro;
+    this.el.fundo.style.backgroundImage = `url('${FUNDOS[p.dados.fundo]?.img || 'fundo1.jpeg'}')`;
+  }
+
+  // cada aba vira uma pagina inteira, sem o menu do lado
+  abrir(aba) {
+    this.aba = aba;
+    this.el.abas.classList.add('hidden');
+    this.el.pagina.classList.remove('hidden');
+    this.el.painel.innerHTML = this['_' + aba]?.() || '';
+    this['_ligar_' + aba]?.();
+  }
+
+  /* ---------------- abas ---------------- */
+
+  _solo() {
+    const p = this.profile;
+    const cards = Object.entries(OPERADORES).map(([id, o]) => {
+      const meu = p.temItem('op' + id);
+      const usando = String(p.dados.operador) === String(id);
+      return `<button class="card op-card ${usando ? 'ativo' : ''} ${meu ? '' : 'bloqueado'}" data-solo-op="${id}">
+        <img src="${o.img}" alt="${esc(o.nome)}">
+        <span class="card-nome">${esc(o.nome)}</span>
+        <span class="card-tag">${usando ? 'ESCOLHIDO' : meu ? 'usar este' : 'bloqueado'}</span>
+      </button>`;
+    }).join('');
+
+    return `
+      <h2>JOGAR SOLO</h2>
+      <p class="menu-sub">voce e mais 4 bots contra um time de 5 — primeiro a 50 abates ganha</p>
+      <h3 class="bloco">ESCOLHA O OPERADOR</h3>
+      <div class="cards">${cards}</div>
+      <ul class="lista-info">
+        <li>os bots do time de frente usam o outro operador, para nao confundir</li>
+        <li>aliado nao toma tiro de aliado, igual no online</li>
+      </ul>
+      <div class="row"><button id="btnSolo" class="primary">COMECAR PARTIDA</button></div>`;
+  }
+
+  _ligar_solo() {
+    for (const b of this.el.painel.querySelectorAll('[data-solo-op]')) {
+      b.onclick = () => {
+        const id = b.dataset.solo_op || b.dataset.soloOp;
+        if (!this.profile.temItem('op' + id)) { this.toast('libere este operador na loja'); return; }
+        this.profile.escolherOperador(id);
+        this.abrir('solo');
+      };
+    }
+    $('btnSolo').onclick = () => this.onJogarSolo(Number(this.profile.dados.operador) || 1);
+  }
+
+  _entrar() {
+    return `
+      <h2>ENTRAR NA SALA</h2>
+      <p class="menu-sub">cole o codigo que o dono da sala mandou</p>
+      <input id="codeInput" class="code-input" maxlength="5" placeholder="ABCDE" autocomplete="off">
+      <div class="row"><button id="btnJoin" class="primary">ENTRAR</button></div>
+      <p class="hint error" id="joinError"></p>`;
+  }
+
+  _ligar_entrar() {
+    const entrar = () => {
+      const code = $('codeInput').value.trim().toUpperCase();
+      if (code.length < 4) { $('joinError').textContent = 'digite o codigo da sala'; return; }
+      this.onEntrarSala(code);
+    };
+    $('btnJoin').onclick = entrar;
+    $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(); });
+    $('codeInput').focus();
+  }
+
+  _criar() {
+    return `
+      <h2>CRIAR SALA</h2>
+      <p class="menu-sub">voce vira o dono e recebe o codigo para chamar a galera</p>
+      <ul class="lista-info">
+        <li>time A contra time B, primeiro a 50 abates leva</li>
+        <li>da para comecar sozinho so para treinar</li>
+        <li>quem entrar depois cai direto na partida</li>
+      </ul>
+      <div class="row"><button id="btnCreate" class="primary">CRIAR SALA</button></div>`;
+  }
+
+  _ligar_criar() { $('btnCreate').onclick = () => this.onCriarSala(); }
+
+  _fundo() {
+    const p = this.profile;
+    const cards = Object.entries(FUNDOS).map(([id, f]) => {
+      const meu = p.temItem(id);
+      const usando = p.dados.fundo === id;
+      return `<button class="card fundo-card ${usando ? 'ativo' : ''}" data-fundo="${id}">
+        <img src="${f.img}" alt="${esc(f.nome)}">
+        <span class="card-nome">${esc(f.nome)}</span>
+        <span class="card-tag">${usando ? 'EM USO' : meu ? 'usar' : f.preco + ' moedas'}</span>
+      </button>`;
+    }).join('');
+
+    return `
+      <h2>PLANO DE FUNDO</h2>
+      <p class="menu-sub">a arte que aparece aqui no menu</p>
+      <div class="cards">${cards}
+        <div class="card vazio"><span>mais fundos<br>em breve</span></div>
+      </div>`;
+  }
+
+  _ligar_fundo() {
+    for (const b of this.el.painel.querySelectorAll('[data-fundo]')) {
+      b.onclick = () => {
+        const id = b.dataset.fundo;
+        const f = FUNDOS[id];
+        if (!this.profile.temItem(id) && !this.profile.comprar(id, f.preco)) {
+          this.toast('moedas insuficientes');
+          return;
+        }
+        this.profile.escolherFundo(id);
+        this.abrir('fundo');
+      };
+    }
+  }
+
+  _operador() {
+    const p = this.profile;
+    const cards = Object.entries(OPERADORES).map(([id, o]) => {
+      const meu = p.temItem('op' + id);
+      const usando = String(p.dados.operador) === String(id);
+      return `<button class="card op-card ${usando ? 'ativo' : ''} ${meu ? '' : 'bloqueado'}" data-op="${id}">
+        <img src="${o.img}" alt="${esc(o.nome)}">
+        <span class="card-nome">${esc(o.nome)}</span>
+        <span class="card-tag">${usando ? 'EM USO' : meu ? 'usar' : o.preco + ' moedas'}</span>
+      </button>`;
+    }).join('');
+
+    return `
+      <h2>OPERADOR</h2>
+      <p class="menu-sub">quem voce leva para a partida</p>
+      <div class="cards">${cards}
+        <div class="card vazio"><span>novos operadores<br>em breve</span></div>
+      </div>`;
+  }
+
+  _ligar_operador() {
+    for (const b of this.el.painel.querySelectorAll('[data-op]')) {
+      b.onclick = () => {
+        const id = b.dataset.op;
+        const o = OPERADORES[id];
+        if (!this.profile.temItem('op' + id)) {
+          if (!this.profile.comprar('op' + id, o.preco)) { this.toast('moedas insuficientes'); return; }
+          this.toast(o.nome + ' liberado!');
+        }
+        this.profile.escolherOperador(id);
+        this.abrir('operador');
+      };
+    }
+  }
+
+  _loja() {
+    const p = this.profile;
+    const itens = LOJA.map((it) => {
+      const meu = p.temItem(it.id);
+      return `<button class="card loja-card ${it.embreve ? 'bloqueado' : ''}" data-loja="${it.id}" data-preco="${it.preco}">
+        <span class="card-tipo">${esc(it.tipo)}</span>
+        <span class="card-nome">${esc(it.nome)}</span>
+        <span class="card-tag">${it.embreve ? 'em breve' : meu ? 'COMPRADO' : it.preco + ' moedas'}</span>
+      </button>`;
+    }).join('');
+
+    return `
+      <h2>LOJA</h2>
+      <p class="menu-sub">skins de arma, acessorios e o que vier por ai</p>
+      <div class="cards">${itens}</div>`;
+  }
+
+  _ligar_loja() {
+    for (const b of this.el.painel.querySelectorAll('[data-loja]')) {
+      b.onclick = () => {
+        const id = b.dataset.loja;
+        const item = LOJA.find((i) => i.id === id);
+        if (item.embreve) { this.toast('ainda nao esta pronto'); return; }
+        if (this.profile.temItem(id)) { this.toast('voce ja tem isso'); return; }
+        if (!this.profile.comprar(id, item.preco)) { this.toast('moedas insuficientes'); return; }
+        this.toast(item.nome + ' comprado');
+        this.abrir('loja');
+      };
+    }
+  }
+
+  // desenha as configuracoes em outro lugar (usado tambem na pausa do jogo)
+  configEm(container) {
+    container.innerHTML = this._config();
+    this._ligar_config(container);
+  }
+
+  _config() {
+    const grupos = Object.entries(OPCOES).map(([chave, op]) => {
+      const atual = this.settings.chaveDe(chave);
+      const botoes = Object.entries(op.valores).map(([v, info]) =>
+        `<button class="opt ${v === atual ? 'ativa' : ''}" data-cfg="${chave}" data-val="${v}">${esc(info.nome)}</button>`
+      ).join('');
+      return `<div class="cfg">
+        <div class="cfg-nome">${esc(op.titulo)}<small>${esc(op.ajuda)}</small></div>
+        <div class="cfg-opts">${botoes}</div>
+      </div>`;
+    }).join('');
+
+    return `
+      <h2>CONFIGURACOES</h2>
+      <p class="menu-sub">vale para esta maquina e fica salvo</p>
+      ${grupos}`;
+  }
+
+  _ligar_config(container = this.el.painel) {
+    for (const b of container.querySelectorAll('[data-cfg]')) {
+      b.onclick = () => {
+        this.settings.set(b.dataset.cfg, b.dataset.val);
+        // redesenha no mesmo lugar em que o painel esta
+        if (container === this.el.painel) this.abrir('config');
+        else this.configEm(container);
+      };
+    }
+  }
+}
