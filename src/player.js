@@ -3,7 +3,7 @@ import { WORLD_SIZE } from './world.js';
 
 const EYE_STAND = 1.72;
 const EYE_CROUCH = 1.05;
-const RADIUS = 0.45;
+const RADIUS = 0.36;         // folga para passar em porta de apartamento
 const GRAVITY = 22;
 const JUMP = 7.4;
 
@@ -99,13 +99,22 @@ export class Player {
     this.position.z += this.velocity.z * dt;
     this.position.y += this.velocity.y * dt;
 
-    if (this.position.y <= 0) {
-      this.position.y = 0;
+    this._collide();
+
+    // chao: no campo e sempre 0; no modo historia vem dos pisos e escadas
+    const chao = this.world.alturaChao(this.position.x, this.position.z, this.position.y);
+    if (this.position.y <= chao) {
+      this.position.y = chao;
       this.velocity.y = 0;
       this.grounded = true;
+    } else if (this.grounded && this.velocity.y <= 0 && this.position.y - chao < 0.45) {
+      // descendo rampa/degrau: gruda no piso em vez de sair quicando
+      this.position.y = chao;
+      this.velocity.y = 0;
+    } else {
+      this.grounded = false;
     }
 
-    this._collide();
     this._clampToField();
     this._updateCamera(dt);
   }
@@ -130,6 +139,8 @@ export class Player {
   // para o espaco da parede, empurra pelo lado de menor invasao e volta.
   _collideBoxes() {
     for (const b of this.world.boxColliders) {
+      // parede de outro andar nao trava (y0/y1 so existem no modo historia)
+      if (b.y1 !== undefined && (this.position.y >= b.y1 - 0.05 || this.position.y + 1.8 <= b.y0)) continue;
       const sin = Math.sin(b.rot), cos = Math.cos(b.rot);
       const dx = this.position.x - b.x;
       const dz = this.position.z - b.z;

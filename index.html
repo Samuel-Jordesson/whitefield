@@ -60,12 +60,27 @@
   <div id="lootPrompt" class="hidden"><b>E</b> abrir caixa</div>
   <div id="dropPrompt" class="hidden"><b>E</b> pegar</div>
 
+  <!-- modo historia -->
+  <div id="objetivo" class="hidden"><span>OBJETIVO</span><b id="objetivoTexto"></b></div>
+  <div id="historiaFala" class="hidden"></div>
+  <div id="historiaPrompt" class="hidden"></div>
+
   <div id="cigarroHud" class="hidden"></div>
   <div id="damage"></div>
 </div>
 
 <!-- baforada do cigarro -->
 <div id="fumaca" class="hidden"></div>
+
+<!-- cinematicas do modo historia: tarjas de cinema, legenda, titulo e fade -->
+<div id="cine" class="hidden">
+  <div class="cine-barra cima"></div>
+  <div class="cine-barra baixo"></div>
+  <div id="cineFade"></div>
+  <div id="cineTitulo"><h1 id="cineTituloTexto"></h1><p id="cineTituloSub"></p></div>
+  <div id="cineLegenda"><b id="cineQuem"></b><span id="cineFala"></span></div>
+  <div id="cinePular">aperte <b>ESPACO</b> de novo para pular</div>
+</div>
 
 <!-- ---------------- arma em primeira pessoa ---------------- -->
 <div id="weaponWrap" class="hidden">
@@ -76,6 +91,12 @@
 
 <!-- mira (botao direito): a arma sai e voce olha pela janela da mira -->
 <div id="scopeWrap" class="hidden">
+  <!-- lente da sniper: fica atras do desenho da luneta e escurece o resto da tela -->
+  <div id="lente">
+    <i class="ret ret-h"></i>
+    <i class="ret ret-v"></i>
+    <i class="ret-ponto"></i>
+  </div>
   <img id="scope" src="mira.png" alt="mira" draggable="false">
   <div id="muzzleAds"></div>
 </div>
@@ -104,6 +125,7 @@
 
       <div id="menuCorpo">
         <nav id="menuAbas">
+          <button class="aba destaque" data-aba="historia">MODO HISTORIA</button>
           <button class="aba destaque" data-aba="solo">JOGAR SOLO</button>
           <button class="aba" data-aba="entrar">ENTRAR SALA</button>
           <button class="aba" data-aba="criar">CRIAR SALA</button>
@@ -169,8 +191,13 @@
         <span class="char-name">PERSONAGEM 2</span>
         <span class="char-tag"></span>
       </button>
+      <button class="char" data-char="3">
+        <img src="Jaime/1.png" alt="Jaime" draggable="false">
+        <span class="char-name">JAIME</span>
+        <span class="char-tag"></span>
+      </button>
     </div>
-    <p class="hint" id="selectHint">clique em um dos dois</p>
+    <p class="hint" id="selectHint">clique em um deles</p>
   </section>
 
   <!-- fim de partida -->
@@ -198,12 +225,12 @@
       <li><b>Mouse</b> olhar</li>
       <li><b>Botao esquerdo</b> atirar</li>
       <li><b>Botao direito</b> mirar (zoom)</li>
-      <li><b>1 / 2 · roda</b> trocar de arma</li>
-      <li><b>E</b> abrir caixa</li>
+      <li><b>1 a 3 · roda</b> arma 1 · arma 2 · faca</li>
+      <li><b>E</b> abrir caixa / saquear RIP</li>
       <li><b>G</b> granada na mao</li>
       <li><b>Q</b> usar curativo</li>
       <li><b>C</b> acender cigarro</li>
-      <li><b>3</b> faca</li>
+      <li>nasce com pistola e faca · as outras armas estao nas caixas</li>
       <li><b>Shift</b> correr · <b>Espaco</b> pular</li>
         <li><b>R</b> recarregar · <b>Tab</b> placar</li>
       </ul>
@@ -228,7 +255,7 @@
       <h3>MOCHILA <small>9 espacos</small></h3>
       <div id="bagGrid" class="grid grid-9"></div>
 
-      <h3 class="mt">ARMAS <small>so cabem 2</small></h3>
+      <h3 class="mt">ARMAS <small>2 armas + faca</small></h3>
       <div id="gunGrid" class="grid grid-2"></div>
     </div>
     <div class="loot-col">

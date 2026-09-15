@@ -247,6 +247,9 @@ html, body {
 }
 .grid-9 { grid-template-columns: repeat(3, 96px); }
 .grid-2 { grid-template-columns: repeat(3, 96px); }
+.slot.gun.faca { border-style: dashed; }
+#boxCol.tumba h3 { letter-spacing: .2em; }
+#lootPrompt i { font-style: normal; text-decoration: underline; }
 .grid.drop { border-color: #111; background: rgba(0,0,0,.05); }
 
 .loot-col h3.mt { margin-top: 20px; }
@@ -278,7 +281,7 @@ html, body {
   display: flex; gap: 10px;
 }
 .gun-slot {
-  position: relative; width: 82px; height: 50px;
+  position: relative; width: 72px; height: 46px;
   border: 1px solid #ccc; background: rgba(255,255,255,.7);
   display: grid; place-items: center;
 }
@@ -310,7 +313,7 @@ html, body {
 .slot.dragging { opacity: .3; }
 .slot img { max-width: 56%; max-height: 56%; pointer-events: none; }
 .slot span { font-size: 12px; letter-spacing: .06em; color: #777; }
-.empty-msg { font-size: 15px; color: #999; letter-spacing: .06em; padding: 16px; }
+.empty-msg { font-size: 15px; color: #999; letter-spacing: .06em; padding: 16px; grid-column: 1 / -1; white-space: nowrap; }
 .loot-hint { margin-top: 22px; font-size: 15px; color: #888; letter-spacing: .04em; }
 .loot-hint b { color: #111; }
 
@@ -329,9 +332,58 @@ html, body {
   transform-origin: 0 0;   /* o JS alinha o vidro pelo canto superior esquerdo */
 }
 #scope {
+  position: relative; z-index: 1;      /* o desenho fica por cima da lente */
   display: block; height: 112vh; width: auto;
   filter: drop-shadow(0 10px 22px rgba(0,0,0,.28));
 }
+
+/* lente da sniper: posicao e tamanho do buraco medidos no mirando-snipe.png */
+#lente {
+  display: none;
+  position: absolute; left: 54.7%; top: 43.3%;
+  width: 65.8%; height: 67.4%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  overflow: hidden;
+  /* escurece tudo em volta da lente e a propria borda do vidro */
+  box-shadow: 0 0 0 250vmax rgba(10, 10, 10, .92), inset 0 0 70px 26px rgba(0, 0, 0, .6);
+  background: radial-gradient(circle at 34% 28%, rgba(255,255,255,.10), rgba(255,255,255,0) 42%);
+}
+#scopeWrap.luneta #lente { display: block; }
+
+/* reticula duplex: fina no meio, grossa nas pontas */
+#lente .ret { position: absolute; background: none; }
+#lente .ret-h {
+  left: 0; right: 0; top: 50%; height: 7px; margin-top: -3.5px;
+  background: linear-gradient(90deg, #111 0 30%, transparent 30% 70%, #111 70% 100%);
+}
+#lente .ret-v {
+  top: 0; bottom: 0; left: 50%; width: 7px; margin-left: -3.5px;
+  background: linear-gradient(180deg, #111 0 30%, transparent 30% 70%, #111 70% 100%);
+}
+#lente .ret-h::after, #lente .ret-v::after {
+  content: ''; position: absolute; background: #111;
+}
+#lente .ret-h::after { left: 0; right: 0; top: 50%; height: 1.5px; margin-top: -.75px; }
+#lente .ret-v::after { top: 0; bottom: 0; left: 50%; width: 1.5px; margin-left: -.75px; }
+#lente .ret-ponto {
+  position: absolute; left: 50%; top: 50%; width: 5px; height: 5px;
+  margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: #d11;
+  box-shadow: 0 0 4px rgba(220, 20, 20, .8);
+}
+
+/* olhando pela luneta a mirinha da tela sai (a reticula e a mira) */
+#crosshair.luneta .ch { opacity: 0; }
+
+/* luneta aberta: o fundo em volta fica preto, entao o HUD vira texto claro */
+body.na-luneta #stats,
+body.na-luneta #ammoBox,
+body.na-luneta #ammoMax,
+body.na-luneta .stat .label,
+body.na-luneta .tb-name,
+body.na-luneta .tb-num,
+body.na-luneta #weaponName { color: #eee; text-shadow: none; }
+body.na-luneta .tb-track { border-color: #eee; }
 #muzzleAds {
   position: absolute; left: 39.4%; top: 6%;
   width: 34%; aspect-ratio: 1;
@@ -607,9 +659,23 @@ input {
 /* menu de pausa, no meio da tela */
 #pausaMenu { display: flex; flex-direction: column; align-items: center; }
 .pausa-opcoes {
-  display: flex; flex-direction: column; gap: 10px; width: min(320px, 80vw);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; margin-block: 8px;
 }
-.pausa-opcoes button { width: 100%; padding: 16px; font-size: 15px; }
+/* so o texto, sem caixa: passa o mouse e ganha um risco embaixo */
+.pausa-opcoes button,
+.pausa-opcoes button.primary {
+  background: none; border: none; color: #111;
+  padding: 8px 4px; font-size: 22px; letter-spacing: .22em;
+  position: relative;
+}
+.pausa-opcoes button::after {
+  content: ''; position: absolute; left: 50%; right: 50%; bottom: 4px;
+  height: 2px; background: #111; transition: left .15s, right .15s;
+}
+.pausa-opcoes button:hover,
+.pausa-opcoes button.primary:hover { background: none; color: #111; }
+.pausa-opcoes button:hover::after { left: 0; right: 0; }
+.pausa-opcoes button:not(:hover) { color: #555; }
 
 #pausaConfig {
   width: min(760px, 92vw); margin: 0 auto; text-align: left;
@@ -646,3 +712,86 @@ input {
   z-index: 40; text-transform: uppercase;
 }
 #loading.hidden { display: none; }
+
+/* ---------------- modo historia ---------------- */
+body.historia #teamBars { display: none; }
+
+#objetivo {
+  position: absolute; left: 30px; top: 26px; max-width: min(460px, 70vw);
+  display: flex; flex-direction: column; gap: 4px;
+  border-left: 3px solid #111; padding: 6px 14px;
+  background: linear-gradient(90deg, rgba(255,255,255,.9), rgba(255,255,255,0));
+}
+#objetivo span { font-size: 12px; letter-spacing: .22em; color: #777; }
+#objetivo b { font-size: 20px; font-weight: 400; -webkit-text-stroke: .4px currentColor; }
+#objetivo.novo { animation: objetivoNovo 1.4s ease-out; }
+@keyframes objetivoNovo {
+  0% { transform: translateX(-20px); opacity: 0; background-color: #111; color: #fff; }
+  25% { transform: translateX(0); opacity: 1; background-color: #111; color: #fff; }
+  100% { background-color: transparent; color: #111; }
+}
+
+#historiaFala {
+  position: absolute; left: 50%; bottom: 118px; transform: translateX(-50%);
+  max-width: min(720px, 86vw); text-align: center;
+  font-size: 21px; font-style: italic; padding: 8px 18px;
+  background: rgba(255,255,255,.88); border-bottom: 2px solid #111;
+}
+
+#historiaPrompt {
+  position: absolute; left: 50%; top: 60%; transform: translateX(-50%);
+  font-size: 18px; padding: 8px 16px; background: rgba(255,255,255,.92); border: 2px solid #111;
+}
+#historiaPrompt b { display: inline-block; border: 2px solid #111; padding: 0 7px; margin-right: 8px; }
+#historiaPrompt span { color: #b00; }
+
+/* cinematica */
+body.cinema #hud, body.cinema #weaponWrap, body.cinema #scopeWrap, body.cinema #toast { visibility: hidden; }
+#cine { position: fixed; inset: 0; z-index: 8; pointer-events: none; }
+.cine-barra {
+  position: absolute; left: 0; right: 0; height: 0; background: #0b0b0b;
+  transition: height .9s cubic-bezier(.2,.7,.2,1);
+}
+.cine-barra.cima { top: 0; }
+.cine-barra.baixo { bottom: 0; }
+#cine.on .cine-barra { height: 11vh; }
+#cineFade { position: absolute; inset: 0; background: #000; opacity: 0; }
+
+#cineTitulo {
+  position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+  color: #fff; opacity: 0; transition: opacity 1.2s; text-shadow: 0 2px 18px rgba(0,0,0,.8);
+}
+#cineTitulo.on { opacity: 1; }
+#cineTitulo h1 { font-size: clamp(34px, 5.4vw, 80px); letter-spacing: .18em; margin-right: -.18em; padding: 0 4vw; }
+#cineTitulo p { font-size: clamp(16px, 2vw, 24px); letter-spacing: .5em; margin-right: -.5em; color: #ddd; margin-top: 6px; }
+
+#cineLegenda {
+  position: absolute; left: 50%; bottom: calc(11vh + 26px); transform: translate(-50%, 10px);
+  max-width: min(900px, 90vw); text-align: center; color: #fff;
+  font-size: clamp(18px, 1.8vw, 26px); text-shadow: 0 2px 6px #000, 0 0 2px #000;
+  opacity: 0; transition: opacity .5s, transform .5s;
+}
+#cineLegenda.on { opacity: 1; transform: translate(-50%, 0); }
+#cineLegenda b { display: block; font-size: .62em; letter-spacing: .3em; color: #bbb; font-weight: 400; }
+#cineLegenda b:empty { display: none; }
+
+#cinePular {
+  position: absolute; right: 28px; bottom: 3.5vh; color: #aaa; font-size: 14px; letter-spacing: .1em;
+  opacity: 0; transition: opacity .3s;
+}
+#cinePular.on { opacity: 1; }
+#cinePular b { color: #fff; }
+
+/* pagina do modo historia */
+.fases { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.fase-card {
+  display: grid; grid-template-columns: 90px 1fr auto; gap: 18px; align-items: center;
+  text-align: left; padding: 16px 20px; background: rgba(255,255,255,.85); border: 2px solid #111;
+}
+.fase-card:hover { background: #fff; color: #111; }
+.fase-num { font-size: 54px; line-height: 1; text-align: center; -webkit-text-stroke: 1px currentColor; }
+.fase-nome { font-size: 24px; letter-spacing: .12em; display: block; }
+.fase-desc { font-size: 15px; color: #666; letter-spacing: 0; display: block; margin-top: 4px; line-height: 1.4; }
+.fase-tag { font-size: 13px; color: #888; letter-spacing: .12em; text-align: right; }
+.fase-card.bloqueado { border-style: dashed; border-color: #bbb; color: #aaa; cursor: default; }
+.fase-card.bloqueado .fase-desc { color: #bbb; }

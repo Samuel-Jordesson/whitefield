@@ -77,7 +77,8 @@ export class DropManager {
   spawn(info) {
     if (this.drops.has(info.id)) return;
     const grupo = this._build(info.kind);
-    grupo.position.set(info.x, FLUTUA, info.z);
+    const base = info.y || 0;                 // piso do andar em que caiu
+    grupo.position.set(info.x, base + FLUTUA, info.z);
     this.scene.add(grupo);
 
     const sombra = new THREE.Mesh(
@@ -87,11 +88,11 @@ export class DropManager {
       })
     );
     sombra.rotation.x = -Math.PI / 2;
-    sombra.position.set(info.x, 0.03, info.z);
+    sombra.position.set(info.x, base + 0.03, info.z);
     this.scene.add(sombra);
 
     this.drops.set(info.id, {
-      ...info, grupo, sombra,
+      ...info, grupo, sombra, base,
       fase: Math.random() * Math.PI * 2,
     });
   }
@@ -123,6 +124,7 @@ export class DropManager {
     camera.getWorldDirection(_dir);
     let melhor = null, melhorDist = Infinity;
     for (const d of this.drops.values()) {
+      if (Math.abs(camera.position.y - 1.7 - d.base) > 1.6) continue;   // outro andar
       _to.set(d.grupo.position.x - camera.position.x, 0, d.grupo.position.z - camera.position.z);
       const dist = _to.length();
       if (dist > ALCANCE || dist > melhorDist) continue;
@@ -138,8 +140,8 @@ export class DropManager {
 
     for (const d of this.drops.values()) {
       d.grupo.rotation.y += dt * 1.5;                       // girando
-      d.grupo.position.y = FLUTUA + Math.sin(this.time * 2 + d.fase) * 0.1;   // flutuando
-      d.sombra.material.opacity = 0.42 - (d.grupo.position.y - FLUTUA) * 0.5;
+      d.grupo.position.y = d.base + FLUTUA + Math.sin(this.time * 2 + d.fase) * 0.1;   // flutuando
+      d.sombra.material.opacity = 0.42 - (d.grupo.position.y - d.base - FLUTUA) * 0.5;
     }
 
     const alvo = ativo ? this._maisProximo(camera) : null;

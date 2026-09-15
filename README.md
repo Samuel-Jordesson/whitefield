@@ -73,11 +73,61 @@ As mesmas configuracoes aparecem no menu inicial e no **ESC durante a partida**
 | Campo de visao | FOV de 70 a 95 |
 | Sensibilidade do mouse | quatro niveis |
 
+## Modo historia
+
+Aba **MODO HISTORIA** no menu. Roda inteiro na sua maquina (nao precisa de
+servidor) e usa o operador escolhido como protagonista.
+
+### Fase 1 — A Subida
+
+Tres da manha. Invadiram o seu predio e o unico caminho e **para cima**: chegar
+ao helicoptero no terraco.
+
+1. **Cinematica de abertura** (ESPACO duas vezes pula): a camera vem da rua,
+   entra pela janela do quarto, fecha no computador com o alerta de invasao, a
+   porta do predio e arrombada (a camera treme e as luzes do corredor apagam),
+   espia os invasores chegando pelo corredor e termina na faca em cima do criado-
+   mudo. A camera desce para os olhos do personagem e o jogo comeca **so com a faca**.
+2. **Andar 0** — quarto com cama desfeita, escrivaninha, guarda-roupa, poster,
+   banheiro. Porta aberta para o corredor: carpete, luminarias (uma piscando),
+   elevador arrombado, lavanderia e apartamentos 33, 34 e 36 com invasores. O
+   primeiro esta de costas: chegue andando e **faca pelas costas mata na hora**
+   (abate silencioso) — e ele larga a pistola na lapide.
+3. **Escada leste** sobe ao andar 1, mas o teto dela desabou logo acima.
+4. **Andar 1** — o corredor tambem desabou no meio. A rota e por dentro: entra
+   no **apartamento 46** (arrombado), atravessa a sala e passa por um **buraco na
+   parede** para o 45, que sai de volta no corredor perto da escada oeste.
+5. **Escada oeste** — dois andares de lances e patamares com invasores descendo.
+6. **Terraco** — heliponto, ar-condicionados e caixa d'agua como cobertura, seis
+   invasores (o chefe, Lobo, tem mais vida e larga a sniper). Com o terraco limpo
+   o rotor liga: **E no helicoptero**.
+7. **Cinematica final**: o personagem corre para o helicoptero, ele decola com a
+   camera girando em volta e some por cima da cidade. Tela de fase concluida com
+   tempo, abates, mortes, XP e moedas (30 na primeira vez).
+
+- **Inimigos com visao de verdade**: so enxergam o que esta na frente e com
+  linha livre (parede, porta fechada e movel escondem voce). Correr faz barulho;
+  tiro e granada alertam quem esta perto. Alertados, eles se mexem de lado,
+  procuram onde voce foi visto por ultimo e atiram em rajadas (pistola, rifle ou
+  escopeta — cada uma com dano, cadencia e alcance proprios).
+- **Checkpoints** no patamar do andar 1, na escada oeste e no terraco. Morreu,
+  volta do ultimo com as armas e itens que tinha nele; os inimigos daquela parte
+  voltam, e caixas e lapides voltam a ter o que tinham.
+- **Objetivo** no canto de cima e falas do personagem aparecem conforme voce
+  avanca.
+- Tudo desenhado no mesmo traco preto e branco: reboco, concreto, azulejo,
+  carpete, portas numeradas, placas de SAIDA, pichacao, entulho e a cidade em
+  volta sao texturas feitas em canvas (`src/historia/texturas.js`).
+
+Para criar a proxima fase: um arquivo como `src/historia/fase1.js` (inimigos,
+areas, checkpoints, caixas e cinematicas) mais um mapa como `mapa1.js`, e
+registrar em `FASES` no `src/historia/historia.js`.
+
 ## Jogar solo
 
 Na aba **JOGAR SOLO** voce escolhe o operador e cai numa partida com **5 bots do
-seu lado e 5 do outro**. Os bots do time de frente usam o outro operador, para
-nao dar confusao na hora do tiro.
+seu lado e 5 do outro**. Os bots do time de frente usam os outros operadores,
+para nao dar confusao na hora do tiro.
 
 - A partida roda inteira na sua maquina: `src/solo.js` finge ser o servidor
   (recebe as mesmas mensagens e devolve os mesmos eventos), entao o resto do jogo
@@ -96,8 +146,8 @@ nao dar confusao na hora do tiro.
 4. Na sala cada um escolhe **TIME A** ou **TIME B** — os dois quadros mostram
    quem ja esta em cada time, e quem entra cai no time mais vazio.
 5. O dono da sala clica em **INICIAR PARTIDA** — da pra comecar sozinho para treinar.
-6. Cada um escolhe entre **Personagem 1** e **Personagem 2** (aparece o desenho
-   parado de cada um). Quando todo mundo escolhe, a partida comeca.
+6. Cada um escolhe entre **Personagem 1**, **Personagem 2** e **Jaime** (aparece o
+   desenho de cada um). Quando todo mundo escolhe, a partida comeca.
 7. Vale 4 tiros para derrubar alguem (25 de dano cada). Quem morre renasce em 3s.
    Quem chega no meio de uma partida ja em andamento entra direto, so escolhendo
    o personagem.
@@ -123,9 +173,9 @@ nao dar confusao na hora do tiro.
 | Mouse | olhar |
 | Botao esquerdo | atirar (rifle e automatico, pistola e tiro a tiro) |
 | **Botao direito** | **mirar** — a arma sai da tela e entra a mira correspondente, com zoom e mouse mais lento |
-| **1 / 2 / 3 ou roda do mouse** | trocar entre os tres campos de arma (vazio = maos) |
-| **E** | abrir a caixa na sua frente / pegar o item do chao |
-| **I** | abrir a mochila (9 espacos + 2 campos de arma) |
+| **1 a 3 ou roda do mouse** | arma 1 · arma 2 · faca (campo vazio = maos) |
+| **E** | abrir a caixa na sua frente / saquear uma lapide RIP / pegar o item do chao |
+| **I** | abrir a mochila (9 espacos + 2 armas + faca) |
 | **G** | pegar/guardar a granada (aparece na mao) |
 | **Q** | usar um curativo (+35 de vida) |
 | **C** | acender o cigarro (velocidade + visao pelos inimigos) |
@@ -138,15 +188,37 @@ nao dar confusao na hora do tiro.
 
 ## Armas
 
-Sao **tres campos de arma** (teclas 1, 2 e 3, ou a roda do mouse passando por eles):
+Sao **tres campos de arma** (teclas 1 a 3, ou a roda do mouse passando por eles):
+**ARMA 1** e **ARMA 2** para armas de fogo e o campo **FACA**, so para ela.
 
-| | Rifle (`arma.png`) | Pistola (`pistola.png`) | Faca (`faca.png`) |
-|---|---|---|---|
-| Municao | 12 | 8 | — |
-| Dano | 25 | 34 | **60** |
-| Disparo | automatico | tiro a tiro | golpe de perto (ate 2,4 m) |
-| Mira | `mira.png` | `mira-pistola.png` | nao tem |
-| Zoom | FOV 42 | FOV 52 | — |
+**Todo mundo nasce (e renasce) so com a pistola e a faca.** Rifle, escopeta e
+sniper estao **dentro das caixas** — 55% das caixas das cabanas e 30% das do
+campo trazem uma arma, dando em media uns 3-4 rifles, 3 escopetas e 1 sniper por
+mapa. Ou pegue as de quem morreu, na lapide (veja abaixo).
+
+| | Rifle | Pistola | Faca | Escopeta | Sniper |
+|---|---|---|---|---|---|
+| Onde | caixa | nasce com ela | nasce com ela | caixa | caixa (rara) |
+| Municao | 12 | 8 | — | 5 | 5 |
+| Dano | 25 | 34 | **60** | 13 por bolinha (8 bolinhas) | **100** |
+| Disparo | automatico | tiro a tiro | golpe de perto (2,4 m) | leque, dano cai de 8 a 30 m | um tiro por vez, lento |
+| Mira | `mira.png` | `mira-pistola.png` | — | `escopeta/Mirando.png` | luneta com lente |
+| Zoom | FOV 42 | FOV 52 | — | FOV 60 | **FOV 14** |
+
+- **Escopeta:** cada tiro solta 8 bolinhas em leque (mais fechado mirando). Todas
+  as bolinhas que acertam a mesma pessoa viram um dano so, entao de perto ela
+  derruba com um tiro (ate uns 8 m); a 15 m tira em media metade da vida
+  e a 28 m quase nada.
+- **Sniper:** mirando, entra o `mirando-snipe.png` com uma lente de verdade dentro
+  do buraco — reticula duplex (fina no meio, grossa nas pontas), ponto vermelho,
+  borda do vidro escurecida e o resto da tela preto em volta. A luneta balanca de
+  leve com a respiracao e o mouse fica bem mais lento. Sem mirar, o tiro sai
+  desviado do centro.
+  Alcance de 450 m (atravessa o mapa); as outras armas vao ate 220 m.
+- **O tiro atravessa a parte transparente dos desenhos.** Arvore, pedra, arbusto,
+  poste e personagem sao retangulos com um desenho dentro; a bala le a
+  transparencia no ponto do acerto e so para no que aparece na tela. O tronco e
+  a copa continuam servindo de protecao, o vazio ao lado deles nao.
 
 Cada arma de fogo guarda a propria municao, entao trocar no meio da luta nao
 perde o pente. Tudo isso fica em `src/weapons.js` — um objeto por arma, com o
@@ -200,8 +272,8 @@ Se o jogo pesar na sua maquina, baixe `COUNT` no topo de `src/grass.js`
 
 ## Mochila, armas e itens no chao
 
-A mochila tem **9 espacos** para granada, curativo e cigarro, mais **3 campos so
-de arma** (ARMA 1, 2 e 3).
+A mochila tem **9 espacos** para granada, curativo e cigarro, mais **3 campos de
+arma**: ARMA 1 e ARMA 2 (qualquer arma de fogo) e FACA (tracejado, so a faca).
 
 - **I** abre a mochila a qualquer hora; **E** abre a caixa que estiver na frente.
 - Espalhadas pelo mapa (e dentro das cabanas), as caixas aparecem como
@@ -214,9 +286,11 @@ de arma** (ARMA 1, 2 e 3).
   frente. No chao ele fica **flutuando e girando**, estilo Warzone/Minecraft, e
   ganha volume por empilhamento: 14 copias do PNG separadas em profundidade, as
   de tras mais escuras — girando, da para ver a "espessura" do desenho.
-- Chegando perto de um item no chao aparece **E pegar**. Arma vai para um campo
-  livre; se os dois estiverem cheios, ela troca com a que esta na mao e a antiga
-  cai no chao.
+- Chegando perto de um item no chao aparece **E pegar**. Arma vai para o campo 1
+  ou 2 que estiver livre; se os dois estiverem cheios, ela troca com a que esta
+  na mao (ou com a ARMA 1, se a mao estiver na faca) e a antiga cai no chao. A
+  troca de lugar arrastando so vale entre ARMA 1 e ARMA 2 — a faca fica no campo
+  dela, e com uma faca ja guardada nao da para pegar outra.
 - **Campo de arma vazio = maos vazias**: trocando para ele (tecla 1 ou 2) voce
   fica so com a mao na tela, sem municao e sem conseguir atirar.
 - Quem decide quem ficou com o item e o servidor — dois jogadores nao pegam a
@@ -227,6 +301,12 @@ de arma** (ARMA 1, 2 e 3).
   curva fica mais marcada. A previsao roda a mesma fisica do arremesso, entao
   nao mente. O botao esquerdo joga; ela quica, estoura em 2,4 s e faz ate 95 de
   dano em 6,5 m (inclusive em voce, se ficar perto).
+- **A explosao** vem em camadas, cada uma no seu tempo: um clarao de luz que
+  ilumina o cenario em volta, a bola de fogo, faiscas e estilhacos que voam e
+  quicam no chao, uma onda de choque de poeira, a fumaca (comeca preta de
+  fuligem, se abre, sobe e clareia ate sumir em uns 5 s) e uma marca de queimado
+  que fica no chao por 16 s. Quem estiver perto sente a camera tremer, e o
+  tremor diminui com a distancia. Tudo em `_explode()` no `src/grenade.js`.
 - **Curativo** (`itens/vida.png`): **Q** devolve 35 de vida, com a conta feita no
   servidor.
 - **Cigarro** (`itens/cigarro.png`): o item **raro** — aparece em cerca de 7% das
@@ -235,6 +315,29 @@ de arma** (ARMA 1, 2 e 3).
   **5 s enxergando os inimigos em vermelho atraves de tudo** (parede, cabana,
   arvore). Um contador no rodape mostra quanto falta de cada efeito.
 
+## Lapide RIP
+
+Quando alguem morre — jogador ou bot — nasce uma **lapide com RIP** no lugar
+exato da morte, desenhada em canvas no mesmo traco do jogo (`tombstoneTexture`
+em `src/textures.js`).
+
+- **Tudo o que a pessoa carregava vai para a lapide**: as armas dos tres campos e
+  os itens da mochila. Quem morreu fica sem nada ate renascer, e renasce so com
+  pistola e faca.
+- Chegando perto e olhando para ela, o traco engrossa, aparece um brilho de
+  rabisco e o aviso **E saquear &lt;nome&gt;**. O **E** abre a mesma tela da caixa,
+  com o titulo **RIP** e o nome de quem caiu — e so arrastar.
+- **Qualquer um pode saquear**, aliado ou inimigo, e quem chegar primeiro leva: o
+  servidor tira o item da lapide e avisa todo mundo.
+- A lapide some sozinha depois de **2 minutos**; com mais de 40 no mapa a mais
+  antiga vai embora antes.
+- Online, quem morreu manda a lista do que carregava; o servidor so aceita **uma
+  lapide por morte** e so itens que existem no jogo (`ITENS_VALIDOS` em
+  `src/mapgen.js`). Quem entra com a partida rolando ja recebe as lapides que
+  estao no mapa.
+- No solo, o bot que cai deixa pistola e faca e, as vezes, uma arma das caixas,
+  curativo, granada ou (raramente) cigarro.
+
 ## Estrutura
 
 ```
@@ -242,6 +345,7 @@ server.js           servidor: arquivos estaticos + salas (WebSocket, porta unica
 index.html          menu inicial, telas (sala, escolha, pausa, fim) e HUD
 fundo1.jpeg         arte de fundo do menu
 style.css           telas, HUD e o view model da arma
+Arvore.png          arvore do cenario (reduzida para 1024 px ao carregar)
 arma.png            rifle em primeira pessoa   |  mira.png          mira do rifle
 pistola.png         pistola em primeira pessoa |  mira-pistola.png  mira da pistola
 mão-solo.png        mao vazia (segura a granada)
@@ -256,6 +360,14 @@ src/
   menu.js           menu inicial: abas, loja, operador, fundo e configuracoes
   solo.js           partida contra bots, fingindo ser o servidor
   mapgen.js         cabanas e caixas (usado pelo servidor e pelo modo solo)
+  historia/
+    historia.js     modo historia: IA dos inimigos, areas, checkpoints, helicoptero
+    cinematica.js   camera em trilho, tarjas de cinema, legendas, titulo e fade
+    fase1.js        roteiro da fase 1 (inimigos, caixas, areas, cinematicas)
+    mapa1.js        o predio da fase 1 (andares, escadas, apartamentos, terraco)
+    construtor.js   paredes com vaos, lajes, lances de escada, placas e luzes
+    moveis.js       cama, escrivaninha, sofa, ar-condicionado, helicoptero...
+    texturas.js     reboco, concreto, portas, placas, cidade, heliponto
   profile.js        nome, nivel, XP, moedas e compras (salvo no navegador)
   settings.js       as configuracoes e como cada uma mexe no jogo
   net.js            cliente WebSocket (conecta no mesmo host da pagina)
@@ -275,6 +387,10 @@ src/
 
 ## Como os personagens funcionam
 
+- Sao tres operadores: **Personagem 1** (gratis), **Personagem 2** (60 moedas) e
+  **Jaime** (gratis, pasta `Jaime/`). O Jaime tem um desenho so, usado nas duas
+  poses. No modo solo seus aliados usam o seu operador e o time de frente sorteia
+  entre os outros — Jaime incluso quando voce nao estiver com ele.
 - Cada personagem tem duas poses: `parado.png` e `mirando.png`. O adversario
   aparece parado ate apertar o botao direito — ai o sprite dele troca para a
   pose de mira na tela de todo mundo, na hora (o estado vai junto com a posicao).
@@ -315,7 +431,11 @@ dentro do PNG) e `scopeHeight` na entrada daquela arma em `src/weapons.js`.
 - Tempo de renascer: `RESPAWN_TIME` no topo de `src/main.js`.
 - Forca e raio da granada: `BLAST_DAMAGE`, `BLAST_RADIUS` e `FUSE` em `src/grenade.js`.
 - Aparencia da curva: `ARC_DOTS`, `ARC_EVERY` e o `size` do material em `src/grenade.js`.
-- Quantidade de caixas e o que vem dentro: `makeBoxes()` em `server.js`.
+- Quantidade de caixas e o que vem dentro (inclusive a chance de arma):
+  `makeBoxes()` em `src/mapgen.js`. Loadout de quem nasce: `LOADOUT_INICIAL` no
+  mesmo arquivo.
+- Tempo e limite das lapides: `LAPIDE_DURA` e `MAX_LAPIDES` em `server.js` (online)
+  e em `src/solo.js` (solo).
 - Quantidade e modelos das cabanas: `makeHuts()` em `server.js`; o formato de
   cada modelo (tamanho, portas, janelas, telhado) fica em `HUT_TYPES` no topo
   de `src/huts.js`.

@@ -12,6 +12,18 @@ export function makeRng(seed) {
   };
 }
 
+// tudo que existe para carregar — o servidor confere a lapide contra esta lista
+export const ITENS_VALIDOS = ['granada', 'vida', 'cigarro', 'rifle', 'pistola', 'faca', 'escopeta', 'snipe'];
+
+// com o que todo mundo nasce: arma 1, arma 2 e o campo da faca
+export const LOADOUT_INICIAL = ['pistola', null, 'faca'];
+
+// arma sorteada numa caixa (a sniper e a mais rara)
+function sortearArma(rnd) {
+  const s = rnd();
+  return s < 0.48 ? 'rifle' : s < 0.82 ? 'escopeta' : 'snipe';
+}
+
 export const HUT_KINDS = ['madeira', 'tijolo', 'barracao'];
 export const HUT_SIZE = { madeira: 5.0, tijolo: 5.6, barracao: 6.5 };   // raio ocupado
 
@@ -58,6 +70,8 @@ export function makeBoxes(seed, huts = [], soltas = 8) {
     if (rnd() < 0.3) items.push(rnd() < 0.5 ? 'granada' : 'vida');
     // cigarro: item raro, so aparece nas caixas boas e mesmo assim quase nunca
     if (rnd() < (rico ? 0.12 : 0.03)) items.push('cigarro');
+    // ninguem nasce com rifle, escopeta ou sniper: elas estao nas caixas
+    if (rnd() < (rico ? 0.55 : 0.3)) items.unshift(sortearArma(rnd));
     return items;
   };
 

@@ -5,9 +5,12 @@ import { Billboard, makeBlobShadow } from './billboard.js';
 const HEIGHT = 1.85;         // altura do personagem em metros
 const LERP = 12;             // suavizacao da posicao que chega pela rede
 
+// `idle`/`aim` sao os arquivos das poses; personagem com um desenho so usa o
+// mesmo arquivo nas duas
 export const CHARACTERS = {
-  1: { name: 'Personagem 1', dir: 'perssonagem1/' },
-  2: { name: 'Personagem 2', dir: 'perssonagem2/' },
+  1: { name: 'Personagem 1', dir: 'perssonagem1/', idle: 'parado.png', aim: 'mirando.png' },
+  2: { name: 'Personagem 2', dir: 'perssonagem2/', idle: 'parado.png', aim: 'mirando.png' },
+  3: { name: 'Jaime', dir: 'Jaime/', idle: '1.png', aim: '1.png' },
 };
 
 // Carrega parado.png e mirando.png dos dois personagens. A pose "parado"
@@ -16,8 +19,8 @@ export async function loadCharacters() {
   const out = {};
   for (const [id, info] of Object.entries(CHARACTERS)) {
     const [idle, aim] = await Promise.all([
-      TEX.loadTrimmedTexture(info.dir + 'parado.png'),
-      TEX.loadTrimmedTexture(info.dir + 'mirando.png'),
+      TEX.loadTrimmedTexture(info.dir + info.idle),
+      TEX.loadTrimmedTexture(info.dir + info.aim),
     ]);
     const scale = HEIGHT / idle.height;
     out[id] = {
@@ -78,12 +81,12 @@ class RemotePlayer {
     // um pouco de luz propria: o desenho e so contorno, entao no contraluz
     // ele viraria uma silhueta cinza e ninguem enxergaria o personagem
     this.mesh.material.emissive = new THREE.Color(0x6a6a6a);
-    this.mesh.position.set(info.x || 0, 0, info.z || 0);
+    this.mesh.position.set(info.x || 0, info.y || 0, info.z || 0);
     this.mesh.userData.player = this;
     scene.add(this.mesh);
 
     this.shadow = makeBlobShadow(shadowTex, pose.w * 1.4);
-    this.shadow.position.set(this.mesh.position.x, 0.03, this.mesh.position.z);
+    this.shadow.position.set(this.mesh.position.x, this.mesh.position.y + 0.03, this.mesh.position.z);
     scene.add(this.shadow);
 
     // aliado ganha uma plaquinha com o nome, para nao levar tiro de amigo
@@ -137,7 +140,7 @@ class RemotePlayer {
     this.mesh.material.transparent = true;
   }
 
-  respawn(x, z) {
+  respawn(x, z, y = 0) {
     this.alive = true;
     this.deathTime = -1;
     this.health = 100;
@@ -145,8 +148,8 @@ class RemotePlayer {
     this.mesh.material.transparent = false;
     this.mesh.material.opacity = 1;
     this.mesh.rotation.z = 0;
-    this.mesh.position.set(x, 0, z);
-    this.target.set(x, 0, z);
+    this.mesh.position.set(x, y, z);
+    this.target.set(x, y, z);
     this.shadow.material.opacity = 0.55;
   }
 
@@ -179,8 +182,9 @@ class RemotePlayer {
     m.position.y += (this.target.y - m.position.y) * k;
     m.position.z += (this.target.z - m.position.z) * k;
 
-    this.shadow.position.set(m.position.x, 0.03, m.position.z);
-    this.shadow.material.opacity = 0.5 * Math.max(0.25, 1 - m.position.y * 2);
+    // a sombra fica no piso do andar (o alvo que chega ja vem com os pes no chao)
+    this.shadow.position.set(m.position.x, this.target.y + 0.03, m.position.z);
+    this.shadow.material.opacity = 0.5 * Math.max(0.25, 1 - (m.position.y - this.target.y) * 2);
   }
 
   dispose() {

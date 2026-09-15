@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { makeHuts, makeBoxes } from './mapgen.js';
+import { makeHuts, makeBoxes, LOADOUT_INICIAL } from './mapgen.js';
 
 // Partida solo: roda tudo na sua maquina, sem servidor.
 //
@@ -14,6 +14,8 @@ const ALCANCE_TIRO = 55;     // ate onde o bot consegue acertar
 const ALCANCE_BUSCA = 160;   // ate onde ele percebe que tem briga para o lado de la
 const DANO_BOT = 18;
 const CADENCIA = [0.9, 1.8]; // intervalo entre os tiros do bot
+const LAPIDE_DURA = 120;     // segundos ate a lapide sumir
+const MAX_LAPIDES = 40;
 const VELOCIDADE = [3.2, 4.6];
 
 const NOMES = [
@@ -49,16 +51,21 @@ export class SoloGame {
     this.boxes = makeBoxes(this.seed, this.huts);
     this.drops = new Map();
     this.proximoDrop = 1;
+    this.tombs = new Map();
+    this.proximaLapide = 1;
+    this.vidaJogador = 100;
 
-    // o time do jogador usa um operador, o time de frente usa o outro
-    const opDoTime = { [time]: character, [time === 'A' ? 'B' : 'A']: character === 1 ? 2 : 1 };
+    // seus aliados usam o seu operador; o time de frente sorteia entre os
+    // outros (Jaime incluso), para nunca confundir inimigo com aliado
+    const outros = [1, 2, 3].filter((c) => c !== character);
+    const opDoBot = (t) => (t === time ? character : outros[Math.floor(Math.random() * outros.length)]);
 
     this.bots = [];
     let id = -1;
     for (const t of ['A', 'B']) {
       const quantos = t === time ? BOTS_POR_TIME : BOTS_POR_TIME;
       for (let i = 0; i < quantos; i++) {
-        this.bots.push(this._novoBot(id--, t, opDoTime[t], i));
+        this.bots.push(this._novoBot(id--, t, opDoBot(t), i));
       }
     }
 
@@ -74,6 +81,7 @@ export class SoloGame {
       huts: this.huts,
       boxes: this.boxes,
       drops: [],
+      tombs: [],
     });
   }
 
@@ -149,12 +157,17 @@ export class SoloGame {
 
       case 'respawn': {
         const spawn = this._spawn(this.meuTime, 0);
+        this.vidaJogador = 100;
         this.net._emit('respawn', { spawn });
         break;
       }
 
+      case 'tomb':
+        this._lapide(msg.x, msg.z, this.player.nome || 'Voce', msg.items || []);
+        break;
+
       case 'take': {
-        const box = this.boxes[msg.box];
+        const box = typeof msg.box === 'string' ? this.tombs.get(msg.box) : this.boxes[msg.box];
         const idx = Number(msg.index);
         if (!box || !box.items[idx]) break;
         const [kind] = box.items.splice(idx, 1);
@@ -163,7 +176,7 @@ export class SoloGame {
       }
 
       case 'drop': {
-        const drop = { id: this.proximoDrop++, kind: msg.kind, x: msg.x, z: msg.z };
+        const drop = { id: this.proximoDrop++, kind: msg.kind, x: msg.x, y: msg.y || 0, z: msg.z };
         this.drops.set(drop.id, drop);
         this.net._emit('dropped', { drop });
         break;
@@ -196,6 +209,7 @@ export class SoloGame {
   /* ---------------- vida e abates ---------------- */
 
   _machucarJogador(dano, quem) {
+    if (this.vidaJogador <= 0) return;             // ja esta morto, esperando renascer
     this.vidaJogador = Math.max(0, (this.vidaJogador ?? 100) - dano);
     this.net._emit('hurt', { by: quem?.id ?? 0, health: this.vidaJogador });
     if (this.vidaJogador === 0) {
@@ -208,7 +222,37 @@ export class SoloGame {
     bot.alive = false;
     bot.deaths++;
     bot.renasce = RESSURGE;
+    this._lapide(bot.pos.x, bot.pos.z, bot.name, this._mochilaDoBot());
     this._abate(assassino, bot);
+  }
+
+  // bot nao saqueia de verdade: sorteia o que ele "tinha" quando caiu
+  _mochilaDoBot() {
+    const itens = LOADOUT_INICIAL.filter(Boolean);
+    if (Math.random() < 0.4) itens.unshift(['rifle', 'escopeta', 'snipe'][Math.floor(Math.random() * 3)]);
+    if (Math.random() < 0.45) itens.push('vida');
+    if (Math.random() < 0.25) itens.push('granada');
+    if (Math.random() < 0.04) itens.push('cigarro');
+    return itens;
+  }
+
+  // lapide com RIP onde alguem morreu, igual o servidor faz
+  _lapide(x, z, name, items) {
+    const tomb = {
+      id: 't' + this.proximaLapide++,
+      x: Number(x) || 0, z: Number(z) || 0,
+      name, items: [...items].slice(0, 12),
+    };
+    this.tombs.set(tomb.id, { ...tomb, dura: LAPIDE_DURA });
+    this.net._emit('tomb', { tomb: { ...tomb, items: [...tomb.items] } });
+
+    // muita gente morrendo: a mais antiga some primeiro
+    if (this.tombs.size > MAX_LAPIDES) this._tirarLapide(this.tombs.keys().next().value);
+  }
+
+  _tirarLapide(id) {
+    if (!this.tombs.delete(id)) return;
+    this.net._emit('tombGone', { id });
   }
 
   // soma o placar e avisa a tela, igual o servidor faz
@@ -237,6 +281,11 @@ export class SoloGame {
   update(dt) {
     if (!this.ativo) return;
     this.vidaJogador = this.vidaJogador ?? 100;
+
+    for (const t of this.tombs.values()) {
+      t.dura -= dt;
+      if (t.dura <= 0) this._tirarLapide(t.id);
+    }
 
     for (const bot of this.bots) {
       if (!bot.alive) {

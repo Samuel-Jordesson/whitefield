@@ -7,7 +7,10 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { makeHuts, makeBoxes } from './src/mapgen.js';
+import { makeHuts, makeBoxes, ITENS_VALIDOS } from './src/mapgen.js';
+
+const LAPIDE_DURA = 120000;   // ms ate a lapide sumir
+const MAX_LAPIDES = 40;
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -175,6 +178,8 @@ wss.on('connection', (ws) => {
           boxes: [],
           drops: new Map(),
           nextDrop: 1,
+          tombs: new Map(),
+          nextTomb: 1,
           score: { A: 0, B: 0 },
           players: new Map(),
         };
@@ -237,6 +242,8 @@ wss.on('connection', (ws) => {
         room.boxes = makeBoxes(room.seed, room.huts);
         room.drops = new Map();
         room.nextDrop = 1;
+        room.tombs = new Map();
+        room.nextTomb = 1;
         for (const p of room.players.values()) {
           p.character = null;
           p.ready = false;
@@ -247,7 +254,7 @@ wss.on('connection', (ws) => {
 
       case 'character': {
         if (!room || room.state === 'lobby') break;
-        player.character = msg.character === 2 ? 2 : 1;
+        player.character = [1, 2, 3].includes(msg.character) ? msg.character : 1;
         player.ready = true;
         pushLobby(room);
 
@@ -260,6 +267,7 @@ wss.on('connection', (ws) => {
             room: roomInfo(room), spawn: player.spawn,
             seed: room.seed, huts: room.huts, boxes: room.boxes,
             drops: [...room.drops.values()],
+            tombs: [...room.tombs.values()],
           });
           break;
         }
@@ -277,6 +285,7 @@ wss.on('connection', (ws) => {
               room: roomInfo(room), spawn: p.spawn,
               seed: room.seed, huts: room.huts, boxes: room.boxes,
               drops: [...room.drops.values()],
+              tombs: [...room.tombs.values()],
             });
           }
         }
@@ -286,6 +295,8 @@ wss.on('connection', (ws) => {
       /* ----- durante a partida ----- */
       case 'state': {
         if (!room || room.state !== 'match') break;
+        player.x = Number(msg.x) || 0;             // onde a lapide nasce se ele cair
+        player.z = Number(msg.z) || 0;
         broadcast(room, 'state', {
           id: player.id,
           x: msg.x, y: msg.y, z: msg.z,
@@ -317,6 +328,7 @@ wss.on('connection', (ws) => {
         if (victim.health === 0) {
           victim.alive = false;
           victim.deaths++;
+          victim.lapidePendente = true;               // uma lapide por morte
           if (victim.id !== player.id) {
             player.kills++;
             room.score[player.team]++;
@@ -340,6 +352,7 @@ wss.on('connection', (ws) => {
         if (!room || room.state !== 'match') break;
         player.health = 100;
         player.alive = true;
+        player.lapidePendente = false;
         const spawn = spawnFor(room, player);
         send(ws, 'respawn', { spawn });
         broadcast(room, 'respawned', { id: player.id, x: spawn.x, z: spawn.z }, player.id);
@@ -350,12 +363,41 @@ wss.on('connection', (ws) => {
       // pegar item da caixa: o servidor decide quem ficou com ele
       case 'take': {
         if (!room || room.state !== 'match') break;
-        const box = room.boxes[msg.box];
+        // caixa tem id numero; lapide tem id "t…"
+        const box = typeof msg.box === 'string' ? room.tombs.get(msg.box) : room.boxes[msg.box];
         const idx = Number(msg.index);
         if (!box || !box.items[idx]) break;
         const [kind] = box.items.splice(idx, 1);
         send(ws, 'took', { box: box.id, index: idx, kind, slot: msg.slot });
         broadcast(room, 'boxChanged', { box: box.id, index: idx }, player.id);
+        break;
+      }
+
+      // quem morreu manda o que carregava: vira uma lapide RIP que qualquer um saqueia
+      case 'tomb': {
+        if (!room || room.state !== 'match' || player.alive || !player.lapidePendente) break;
+        player.lapidePendente = false;
+        const items = (Array.isArray(msg.items) ? msg.items : [])
+          .filter((k) => ITENS_VALIDOS.includes(k))
+          .slice(0, 12);
+        const tomb = {
+          id: 't' + room.nextTomb++,
+          x: Number.isFinite(msg.x) ? msg.x : (player.x || 0),
+          z: Number.isFinite(msg.z) ? msg.z : (player.z || 0),
+          name: player.name,
+          items,
+        };
+        const tombs = room.tombs;
+        tombs.set(tomb.id, tomb);
+        broadcast(room, 'tomb', { tomb });
+
+        const tirar = (id) => {
+          // `tombs` e o mapa desta partida: se outra comecou, nao mexe na nova
+          if (room.tombs !== tombs || !tombs.delete(id)) return;
+          broadcast(room, 'tombGone', { id });
+        };
+        if (tombs.size > MAX_LAPIDES) tirar(tombs.keys().next().value);
+        setTimeout(() => tirar(tomb.id), LAPIDE_DURA);
         break;
       }
 
@@ -366,6 +408,7 @@ wss.on('connection', (ws) => {
           id: room.nextDrop++,
           kind: String(msg.kind || '').slice(0, 16),
           x: Number(msg.x) || 0,
+          y: Number(msg.y) || 0,
           z: Number(msg.z) || 0,
         };
         room.drops.set(drop.id, drop);

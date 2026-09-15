@@ -2,14 +2,20 @@ import * as THREE from 'three';
 import * as TEX from './textures.js';
 import { Billboard, makeBlobShadow } from './billboard.js';
 import { WEAPON_ITEMS } from './weapons.js';
+import { LOADOUT_INICIAL } from './mapgen.js';
 
 const _dir = new THREE.Vector3();
 const _to = new THREE.Vector3();
 
 const BOX_HEIGHT = 0.9;      // altura da caixa em metros
+const TOMB_HEIGHT = 1.15;    // altura da lapide
 const REACH = 4.0;           // distancia para conseguir abrir
 export const SLOTS = 9;      // espacos da mochila
 export const MAX_HEAL = 100;
+
+// campos de arma: duas armas de fogo e um so para a faca
+export const CAMPOS_ARMA = [0, 1];
+export const CAMPO_FACA = 2;
 
 export const ITEMS = {
   granada: { name: 'Granada', img: 'itens/granada.png' },
@@ -21,23 +27,30 @@ export const ITEMS = {
   },
 };
 
-// tudo que pode ser carregado: itens da mochila + as duas armas
+// tudo que pode ser carregado: itens da mochila + as armas
 export const TUDO = { ...ITEMS, ...WEAPON_ITEMS };
 export const EH_ARMA = (kind) => kind in WEAPON_ITEMS;
 
 export async function loadLootTextures() {
+  // a lapide escreve RIP com a fonte do jogo: espera ela carregar antes de desenhar
+  try { await document.fonts.load('700 104px "Betania Patmos"'); } catch { /* usa a reserva */ }
   const [fechada, aberta] = await Promise.all([
     TEX.loadTrimmedTexture('caixa/caixa.png'),
     TEX.loadTrimmedTexture('caixa/caixa-e.png'),
   ]);
   const scale = BOX_HEIGHT / fechada.height;
+  const tombW = TOMB_HEIGHT * (384 / 512);
   return {
     idle: { texture: fechada.texture, w: fechada.width * scale, h: fechada.height * scale },
     focus: { texture: aberta.texture, w: aberta.width * scale, h: aberta.height * scale },
+    tombIdle: { texture: TEX.tombstoneTexture(false), w: tombW, h: TOMB_HEIGHT },
+    tombFocus: { texture: TEX.tombstoneTexture(true), w: tombW, h: TOMB_HEIGHT },
   };
 }
 
-// Caixas espalhadas pelo mapa + a mochila do jogador + a tela de saque.
+// Caixas espalhadas pelo mapa, lapides de quem morreu, a mochila do jogador e
+// a tela de saque. Caixa e lapide funcionam igual: um monte de itens no chao
+// que qualquer um pode abrir com E.
 export class LootManager {
   constructor(scene, textures, { onTake, onLockChange, onDrop, onWeaponsChange }) {
     this.scene = scene;
@@ -48,16 +61,17 @@ export class LootManager {
     this.onWeaponsChange = onWeaponsChange;   // mudou a arma de algum slot
     this.shadowTex = TEX.blobShadowTexture();
 
-    this.boxes = new Map();
+    this.boxes = new Map();                   // caixas (id numerico) e lapides (id "t…")
     this.focused = null;
     this.openBox = null;
     this.slots = new Array(SLOTS).fill(null);
-    this.weapons = ['rifle', 'pistola', 'faca'];   // os tres slots de arma
+    this.weapons = [...LOADOUT_INICIAL];      // [arma 1, arma 2, faca]
 
     this.el = {
       prompt: document.getElementById('lootPrompt'),
       panel: document.getElementById('lootPanel'),
       boxCol: document.getElementById('boxCol'),
+      boxTitle: document.querySelector('#boxCol h3'),
       boxGrid: document.getElementById('boxGrid'),
       bagGrid: document.getElementById('bagGrid'),
       gunGrid: document.getElementById('gunGrid'),
@@ -72,33 +86,53 @@ export class LootManager {
     this.renderHud();
   }
 
-  /* ---------------- caixas no mundo ---------------- */
+  /* ---------------- caixas e lapides no mundo ---------------- */
 
-  spawn(list) {
+  spawn(list, tombs = []) {
     this.clear();
-    for (const info of list) {
-      const pose = this.tex.idle;
-      const mesh = new Billboard(pose.texture, pose.w, pose.h, { doubleSide: true });
-      mesh.material.emissive = new THREE.Color(0x707070);
-      mesh.position.set(info.x, 0, info.z);
-      mesh.userData.box = info.id;
-      this.scene.add(mesh);
+    for (const info of list) this._criar(info, false);
+    for (const info of tombs) this._criar(info, true);
+  }
 
-      const shadow = makeBlobShadow(this.shadowTex, pose.w * 1.2);
-      shadow.position.set(info.x, 0.03, info.z);
-      this.scene.add(shadow);
+  // lapide nova: alguem acabou de morrer
+  addTomb(info) {
+    if (this.boxes.has(info.id)) return;
+    this._criar(info, true);
+  }
 
-      this.boxes.set(info.id, { ...info, items: [...info.items], mesh, shadow, focus: false });
-    }
+  removeTomb(id) {
+    const b = this.boxes.get(id);
+    if (!b) return;
+    if (this.openBox === b) this.close();
+    if (this.focused === b) this.focused = null;
+    this._destruir(b);
+    this.boxes.delete(id);
+  }
+
+  _criar(info, tumba) {
+    const pose = tumba ? this.tex.tombIdle : this.tex.idle;
+    const mesh = new Billboard(pose.texture, pose.w, pose.h, { doubleSide: true });
+    mesh.material.emissive = new THREE.Color(0x707070);
+    mesh.position.set(info.x, info.y || 0, info.z);
+    mesh.userData.box = info.id;
+    this.scene.add(mesh);
+
+    const shadow = makeBlobShadow(this.shadowTex, pose.w * 1.2);
+    shadow.position.set(info.x, (info.y || 0) + 0.03, info.z);
+    this.scene.add(shadow);
+
+    this.boxes.set(info.id, { ...info, items: [...info.items], tumba, mesh, shadow, focus: false });
+  }
+
+  _destruir(b) {
+    this.scene.remove(b.mesh, b.shadow);
+    b.mesh.material.dispose();
+    b.shadow.geometry.dispose();
+    b.shadow.material.dispose();
   }
 
   clear() {
-    for (const b of this.boxes.values()) {
-      this.scene.remove(b.mesh, b.shadow);
-      b.mesh.material.dispose();
-      b.shadow.geometry.dispose();
-      b.shadow.material.dispose();
-    }
+    for (const b of this.boxes.values()) this._destruir(b);
     this.boxes.clear();
     this.focused = null;
     this.close();
@@ -131,9 +165,10 @@ export class LootManager {
     this.el.prompt.classList.toggle('hidden', !showPrompt);
     if (showPrompt) {
       const n = target.items.length;
+      const acao = target.tumba ? `saquear <i>${escapeHtml(target.name || '???')}</i>` : 'abrir caixa';
       this.el.prompt.innerHTML = n
-        ? `<b>E</b> abrir caixa <span>${n} ${n === 1 ? 'item' : 'itens'}</span>`
-        : '<b>E</b> abrir caixa <span>vazia</span>';
+        ? `<b>E</b> ${acao} <span>${n} ${n === 1 ? 'item' : 'itens'}</span>`
+        : `<b>E</b> ${acao} <span>vazia</span>`;
     }
   }
 
@@ -142,6 +177,7 @@ export class LootManager {
     camera.getWorldDirection(_dir);
     let best = null, bestDist = Infinity;
     for (const b of this.boxes.values()) {
+      if (Math.abs(camera.position.y - 1.2 - b.mesh.position.y) > 1.6) continue;   // outro andar
       _to.set(b.mesh.position.x - camera.position.x, 0, b.mesh.position.z - camera.position.z);
       const dist = _to.length();
       if (dist > maxDist || dist > bestDist) continue;
@@ -153,7 +189,9 @@ export class LootManager {
   }
 
   _setFocus(box, on) {
-    const pose = on ? this.tex.focus : this.tex.idle;
+    const pose = box.tumba
+      ? (on ? this.tex.tombFocus : this.tex.tombIdle)
+      : (on ? this.tex.focus : this.tex.idle);
     box.mesh.material.map = pose.texture;
     box.mesh.setSize(pose.w, pose.h);
     box.focus = on;
@@ -180,11 +218,28 @@ export class LootManager {
     return true;
   }
 
-  resetBag() {
+  // nasce so com a pistola e a faca (vazio = morto, esperando renascer)
+  resetBag(vazio = false) {
     this.slots.fill(null);
-    this.weapons = ['rifle', 'pistola', 'faca'];
+    this.weapons = vazio ? [null, null, null] : [...LOADOUT_INICIAL];
     this._refresh();
     this.onWeaponsChange?.();
+  }
+
+  // troca tudo de uma vez (modo historia: comeco da fase e volta do checkpoint)
+  definirCarga(armas, mochila) {
+    if (armas) this.weapons = [...armas];
+    if (mochila) {
+      this.slots.fill(null);
+      mochila.slice(0, SLOTS).forEach((k, i) => { this.slots[i] = k || null; });
+    }
+    this._refresh();
+    this.onWeaponsChange?.();
+  }
+
+  // tudo que esta com voce, para virar o conteudo da lapide
+  tudoQueCarrega() {
+    return [...this.weapons, ...this.slots].filter(Boolean);
   }
 
   // qualquer mudanca no que se carrega redesenha o HUD e, se estiver aberto,
@@ -205,11 +260,17 @@ export class LootManager {
     this.onWeaponsChange?.();
   }
 
-  // guarda a arma no primeiro slot livre; se nao tiver, troca pela de indice `preferido`
+  // em qual campo esta arma entraria (a faca so tem um lugar)
+  campoPara(kind, preferido = 0) {
+    if (kind === 'faca') return CAMPO_FACA;
+    const livre = CAMPOS_ARMA.find((i) => !this.weapons[i]);
+    if (livre !== undefined) return livre;
+    return CAMPOS_ARMA.includes(preferido) ? preferido : CAMPOS_ARMA[0];
+  }
+
+  // guarda a arma no campo certo; se estiver ocupado, devolve a que saiu
   pickWeapon(kind, preferido = 0) {
-    const livre = this.weapons.indexOf(null);
-    if (livre >= 0) { this.setWeapon(livre, kind); return { slot: livre, trocada: null }; }
-    const i = Math.min(Math.max(preferido, 0), this.weapons.length - 1);
+    const i = this.campoPara(kind, preferido);
     const antiga = this.weapons[i];
     this.setWeapon(i, kind);
     return { slot: i, trocada: antiga };
@@ -273,6 +334,12 @@ export class LootManager {
     this.openBox = box;
     this.el.panel.classList.remove('hidden');
     this.el.boxCol.classList.toggle('hidden', !box);
+    this.el.boxCol.classList.toggle('tumba', !!box?.tumba);
+    if (box && this.el.boxTitle) {
+      this.el.boxTitle.innerHTML = box.tumba
+        ? `RIP <small>${escapeHtml(box.name || '???')}</small>`
+        : 'CAIXA';
+    }
     this.el.prompt.classList.add('hidden');
     this.renderPanel();
     this.onLockChange?.(false);
@@ -310,15 +377,15 @@ export class LootManager {
     if (box) {
       this.el.boxGrid.innerHTML = box.items.length
         ? box.items.map((kind, i) => this._slotHtml(kind, 'box', i)).join('')
-        : '<p class="empty-msg">caixa vazia</p>';
+        : `<p class="empty-msg">${box.tumba ? 'ja levaram tudo' : 'caixa vazia'}</p>`;
     }
 
     this.el.bagGrid.innerHTML = this.slots
       .map((kind, i) => this._slotHtml(kind, 'bag', i)).join('');
 
     this.el.gunGrid.innerHTML = this.weapons
-      .map((kind, i) => this._slotHtml(kind, 'gun', i, 'gun')
-        .replace('<div class="slot', `<div data-label="ARMA ${i + 1}" class="slot`)).join('');
+      .map((kind, i) => this._slotHtml(kind, 'gun', i, i === CAMPO_FACA ? 'gun faca' : 'gun')
+        .replace('<div class="slot', `<div data-label="${i === CAMPO_FACA ? 'FACA' : 'ARMA ' + (i + 1)}" class="slot`)).join('');
   }
 
   _bindDrag() {
@@ -354,10 +421,13 @@ export class LootManager {
       this.drag = null;
       ghost.classList.add('hidden');
       this.el.bagGrid.classList.remove('drop');
+      this.el.gunGrid.classList.remove('drop');
+      this.el.trash.classList.remove('drop');
       for (const s of document.querySelectorAll('.slot.dragging')) s.classList.remove('dragging');
 
       const over = this._areaSob(e);
       const alvoSlot = document.elementFromPoint(e.clientX, e.clientY)?.closest('.slot');
+      const alvo = alvoSlot ? Number(alvoSlot.dataset.index) : 0;
 
       if (over === this.el.trash) {
         // jogar fora: sai do inventario e cai no chao
@@ -367,12 +437,12 @@ export class LootManager {
       }
       if (d.from === 'box' && over === this.el.bagGrid && !EH_ARMA(d.kind)) this.take(d.index);
       if (d.from === 'box' && over === this.el.gunGrid && EH_ARMA(d.kind)) {
-        this.takeWeapon(d.index, Number(alvoSlot?.dataset.index) || 0);
+        this.takeWeapon(d.index, this.campoPara(d.kind, alvo));
       }
       if (d.from === 'gun' && over === this.el.gunGrid && alvoSlot) {
-        // trocar as duas armas de lugar
-        const j = Number(alvoSlot.dataset.index);
-        if (j !== d.index) {
+        // trocar as duas armas de fogo de lugar (a faca fica no campo dela)
+        const j = alvo;
+        if (j !== d.index && CAMPOS_ARMA.includes(j) && CAMPOS_ARMA.includes(d.index)) {
           const tmp = this.weapons[j];
           this.weapons[j] = this.weapons[d.index];
           this.weapons[d.index] = tmp;
@@ -398,7 +468,8 @@ export class LootManager {
       const slot = e.target.closest('.slot.filled[data-from="box"]');
       if (!slot) return;
       const i = Number(slot.dataset.index);
-      EH_ARMA(slot.dataset.kind) ? this.takeWeapon(i, 0) : this.take(i);
+      const kind = slot.dataset.kind;
+      EH_ARMA(kind) ? this.takeWeapon(i, this.campoPara(kind, 0)) : this.take(i);
     });
   }
 
@@ -414,6 +485,12 @@ export class LootManager {
   takeWeapon(index, slot = 0) {
     const box = this.openBox;
     if (!box || !box.items[index]) return;
+    // so cabe uma faca: pegar outra so jogaria a sua no chao
+    if (box.items[index] === 'faca' && this.weapons[CAMPO_FACA]) return;
     this.onTake?.(box.id, index, slot);
   }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }

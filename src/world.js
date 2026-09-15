@@ -28,6 +28,8 @@ export class World {
     this.boxColliders = [];  // { x, z, hw, hd, rot } — paredes das cabanas
     this.shadows = [];       // manchas de contato dos props
     this.huts = [];          // grupos 3D das cabanas
+    this.pisos = [];         // modo historia: andares, rampas e escadas
+    this.historia = null;
 
     this.shadowTex = TEX.blobShadowTexture();
     this.textures = {
@@ -48,6 +50,7 @@ export class World {
   // as cabanas ficam no mesmo lugar para todo mundo.
   rebuild(seed, huts = []) {
     this.seed = seed;
+    this.hutsAtuais = huts;
     for (const p of this.props) { this.scene.remove(p); p.material.dispose(); }
     for (const s of this.shadows) { this.scene.remove(s); s.geometry.dispose(); s.material.dispose(); }
     for (const h of this.huts) this.scene.remove(h);
@@ -66,6 +69,71 @@ export class World {
     }
 
     this._scatterProps(this.scene, makeRng(seed));
+  }
+
+  // Troca as arvores desenhadas em canvas pela arte da Arvore.png e refaz o
+  // cenario na mesma semente (as arvores continuam nos mesmos lugares).
+  setTreeImage({ texture, width, height }) {
+    this.textures.trees = [texture];
+    this.treeAspect = width / height;
+    this.rebuild(this.seed, this.hutsAtuais || []);
+  }
+
+  // Altura do chao embaixo de (x, z) para quem esta na altura y. No campo e
+  // sempre 0. No predio os andares ficam empilhados, entao vale o piso mais
+  // alto que ainda esta abaixo dos pes (com uma folga de degrau).
+  alturaChao(x, z, y = 0) {
+    if (!this.pisos.length) return 0;
+    let melhor = -60;
+    for (const p of this.pisos) {
+      if (x < p.x0 || x > p.x1 || z < p.z0 || z > p.z1) continue;
+      let h = p.y;
+      if (p.rampa) {
+        // rampa sobe de y0 para y1 ao longo do eixo, a partir do lado `de`
+        const t = p.rampa.eixo === 'x'
+          ? (p.rampa.de === 'min' ? (x - p.x0) / (p.x1 - p.x0) : (p.x1 - x) / (p.x1 - p.x0))
+          : (p.rampa.de === 'min' ? (z - p.z0) / (p.z1 - p.z0) : (p.z1 - z) / (p.z1 - p.z0));
+        h = p.rampa.y0 + (p.rampa.y1 - p.rampa.y0) * Math.min(1, Math.max(0, t));
+      }
+      if (h <= y + 0.6 && h > melhor) melhor = h;
+    }
+    return melhor;
+  }
+
+  // Troca o campo aberto por uma fase do modo historia (o campo so fica
+  // escondido, para voltar inteiro depois).
+  entrarHistoria(nivel) {
+    if (this.historia) this.sairHistoria();
+    this.historia = {
+      nivel,
+      props: this.props, shadows: this.shadows, huts: this.huts,
+      colliders: this.colliders, boxColliders: this.boxColliders,
+      fog: { near: this.scene.fog.near, far: this.scene.fog.far, cor: this.scene.fog.color.getHex() },
+      fundo: this.scene.background.getHex(),
+    };
+    for (const o of [this.ground, this.ring, ...this.props, ...this.shadows, ...this.huts]) o.visible = false;
+    this.props = [];
+    this.shadows = [];
+    this.huts = [nivel.grupo];               // o tiro bate nas paredes do predio
+    this.colliders = [];
+    this.boxColliders = nivel.barreiras;
+    this.pisos = nivel.pisos;
+    this.scene.add(nivel.grupo);
+    if (nivel.fog) { this.scene.fog.near = nivel.fog.near; this.scene.fog.far = nivel.fog.far; }
+  }
+
+  sairHistoria() {
+    const h = this.historia;
+    if (!h) return;
+    this.scene.remove(h.nivel.grupo);
+    this.props = h.props; this.shadows = h.shadows; this.huts = h.huts;
+    this.colliders = h.colliders; this.boxColliders = h.boxColliders;
+    this.pisos = [];
+    for (const o of [this.ground, this.ring, ...this.props, ...this.shadows, ...this.huts]) o.visible = true;
+    this.scene.fog.near = h.fog.near; this.scene.fog.far = h.fog.far;
+    this.scene.fog.color.setHex(h.fog.cor);
+    this.scene.background.setHex(h.fundo);
+    this.historia = null;
   }
 
   // true se o ponto cai em cima de alguma cabana
@@ -99,6 +167,7 @@ export class World {
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.03;
     scene.add(ring);
+    this.ring = ring;
   }
 
   _setupLights(scene) {
@@ -162,7 +231,7 @@ export class World {
     for (let i = 0; i < 60; i++) {
       const [x, z] = place(14);
       const h = rand(7, 12);
-      this._addProp(scene, trees[i % trees.length], h * 0.66, h, x, z, 0.9);
+      this._addProp(scene, trees[i % trees.length], h * (this.treeAspect ?? 0.66), h, x, z, 0.9);
     }
     for (let i = 0; i < 34; i++) {
       const [x, z] = place(10);

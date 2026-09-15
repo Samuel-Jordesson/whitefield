@@ -3,10 +3,10 @@ import * as THREE from 'three';
 // Todas as texturas dos sprites 2D sao desenhadas em canvas, no mesmo estilo
 // da arma.png: preenchimento branco + contorno preto.
 
-const INK = '#141414';
-const PAPER = '#ffffff';
+export const INK = '#141414';
+export const PAPER = '#ffffff';
 
-function makeCanvas(w, h) {
+export function makeCanvas(w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   const ctx = c.getContext('2d');
@@ -17,7 +17,7 @@ function makeCanvas(w, h) {
   return { c, ctx };
 }
 
-function toTexture(c, { repeat = null, filter = THREE.LinearFilter } = {}) {
+export function toTexture(c, { repeat = null, filter = THREE.LinearFilter } = {}) {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.magFilter = filter;
@@ -30,7 +30,7 @@ function toTexture(c, { repeat = null, filter = THREE.LinearFilter } = {}) {
   return t;
 }
 
-function blob(ctx, cx, cy, r, points, wob, seed = 1) {
+export function blob(ctx, cx, cy, r, points, wob, seed = 1) {
   // poligono organico fechado
   ctx.beginPath();
   for (let i = 0; i <= points; i++) {
@@ -144,6 +144,64 @@ export function crateTexture() {
   return toTexture(c);
 }
 
+// Lapide "RIP" onde alguem morreu. `destaque` engrossa o traco e poe um
+// brilho de rabisco em volta — e a versao que aparece quando da para saquear.
+export function tombstoneTexture(destaque = false) {
+  const { c, ctx } = makeCanvas(384, 512);
+  const esq = 70, dir = 314, topo = 70, base = 452, meio = (esq + dir) / 2;
+
+  if (destaque) {
+    ctx.lineWidth = 5;
+    for (let i = 0; i < 14; i++) {
+      const a = -Math.PI * 0.95 + (i / 13) * Math.PI * 0.9;
+      const r1 = 150, r2 = 182 + (i % 2) * 14;
+      rabisco(ctx, meio + Math.cos(a) * r1, 190 + Math.sin(a) * r1,
+                   meio + Math.cos(a) * r2, 190 + Math.sin(a) * r2, 2, 1);
+    }
+  }
+
+  // pedra com o topo arredondado
+  ctx.lineWidth = destaque ? 14 : 10;
+  ctx.beginPath();
+  ctx.moveTo(esq, base);
+  ctx.lineTo(esq, topo + 120);
+  ctx.arc(meio, topo + 120, meio - esq, Math.PI, 0);
+  ctx.lineTo(dir, base);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // monte de terra na frente
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(24, 492);
+  ctx.quadraticCurveTo(meio, 410, 360, 492);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.lineWidth = 4;
+  rabisco(ctx, 90, 472, 130, 462, 2, 1);
+  rabisco(ctx, 240, 466, 290, 476, 2, 1);
+
+  // rachadura e sombreado de lado
+  ctx.lineWidth = 4;
+  rabisco(ctx, 272, 150, 252, 200, 2, 1);
+  rabisco(ctx, 252, 200, 268, 236, 2, 1);
+  for (let y = 250; y < 420; y += 22) rabisco(ctx, 290, y, 306, y - 14, 1.5, 1);
+
+  // RIP
+  ctx.fillStyle = INK;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 104px "Betania Patmos", "Comic Sans MS", cursive';
+  ctx.fillText('RIP', meio, 250);
+  ctx.lineWidth = 5;
+  rabisco(ctx, 116, 318, 268, 318, 2.5, 2);
+  // cruzinha
+  rabisco(ctx, meio, 356, meio, 420, 2, 2);
+  rabisco(ctx, meio - 22, 376, meio + 22, 376, 2, 2);
+
+  return toTexture(c);
+}
+
 export function bushTexture(seed = 7) {
   const { c, ctx } = makeCanvas(384, 256);
   ctx.lineWidth = 8;
@@ -175,16 +233,17 @@ export function poleTexture() {
 // Carrega um PNG e recorta a moldura transparente em volta do desenho.
 // Devolve a textura ja aparada + o tamanho util em pixels, para o sprite
 // receber a proporcao certa no mundo (sem esticar nem flutuar).
-export function loadTrimmedTexture(url) {
+// `maxLado` reduz imagens enormes (ex.: 3000 px) antes de virar textura.
+export function loadTrimmedTexture(url, maxLado = 0) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => { try { resolve(trim(img)); } catch (e) { reject(e); } };
+    img.onload = () => { try { resolve(trim(img, 16, maxLado)); } catch (e) { reject(e); } };
     img.onerror = () => reject(new Error('nao consegui carregar ' + url));
     img.src = url;
   });
 }
 
-function trim(img, alphaCut = 16) {
+function trim(img, alphaCut = 16, maxLado = 0) {
   const src = document.createElement('canvas');
   src.width = img.naturalWidth;
   src.height = img.naturalHeight;
@@ -207,10 +266,11 @@ function trim(img, alphaCut = 16) {
 
   const w = x1 - x0 + 1;
   const h = y1 - y0 + 1;
+  const escala = maxLado > 0 ? Math.min(1, maxLado / Math.max(w, h)) : 1;
   const out = document.createElement('canvas');
-  out.width = w;
-  out.height = h;
-  out.getContext('2d').drawImage(src, x0, y0, w, h, 0, 0, w, h);
+  out.width = Math.max(1, Math.round(w * escala));
+  out.height = Math.max(1, Math.round(h * escala));
+  out.getContext('2d').drawImage(src, x0, y0, w, h, 0, 0, out.width, out.height);
 
   return { texture: toTexture(out), width: w, height: h };
 }
@@ -230,7 +290,7 @@ export function puffTexture() {
 /* ---------------- paredes das cabanas ---------------- */
 
 // traco tremido, desenhado em duas passadas como caneta em papel
-function rabisco(ctx, x1, y1, x2, y2, wob = 1.6, passadas = 2) {
+export function rabisco(ctx, x1, y1, x2, y2, wob = 1.6, passadas = 2) {
   const dx = x2 - x1, dy = y2 - y1;
   const passos = Math.max(3, Math.round(Math.hypot(dx, dy) / 14));
   for (let p = 0; p < passadas; p++) {
@@ -399,6 +459,121 @@ export function grassTexture() {
   folha(206, 236, 52, 68, 8);
   folha(162, 158, 14, 78, 0);
 
+  return toTexture(c);
+}
+
+/* ---------------- explosao ---------------- */
+
+// Nuvem de fumaca: varios blocos macios sobrepostos, branca (a cor vem do
+// material, que escurece ou clareia a fumaca ao longo da vida dela).
+export function smokeTexture(seed = 1) {
+  const S = 256;
+  const { c, ctx } = makeCanvas(S, S);
+  let a = seed * 9301 + 49297;
+  const rnd = () => ((a = (a * 9301 + 49297) % 233280) / 233280);
+
+  // bolas de fumaca bem definidas, cada uma com topo claro e base escura —
+  // e isso que da volume de nuvem em vez de nevoa lisa
+  const bolas = [];
+  for (let i = 0; i < 11; i++) {
+    const ang = rnd() * Math.PI * 2;
+    const dist = rnd() * 52;
+    bolas.push({
+      x: S / 2 + Math.cos(ang) * dist,
+      y: S / 2 + Math.sin(ang) * dist * 0.8,
+      r: 26 + rnd() * 34,
+    });
+  }
+  bolas.sort((p, q) => q.y - p.y);   // as de baixo primeiro, as de cima por cima
+
+  for (const b of bolas) {
+    const g = ctx.createRadialGradient(b.x - b.r * 0.3, b.y - b.r * 0.35, b.r * 0.1, b.x, b.y, b.r);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.55, 'rgba(205,205,205,0.85)');
+    g.addColorStop(0.85, 'rgba(150,150,150,0.55)');
+    g.addColorStop(1, 'rgba(120,120,120,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // granulado fino para nao parecer plastico
+  const img = ctx.getImageData(0, 0, S, S);
+  for (let i = 0; i < img.data.length; i += 4) {
+    if (img.data[i + 3] === 0) continue;
+    const n = (rnd() - 0.5) * 26;
+    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
+  }
+  ctx.putImageData(img, 0, 0);
+
+  // apaga as bordas para o quadrado nunca aparecer
+  ctx.globalCompositeOperation = 'destination-in';
+  const borda = ctx.createRadialGradient(S / 2, S / 2, S * 0.22, S / 2, S / 2, S * 0.5);
+  borda.addColorStop(0, 'rgba(0,0,0,1)');
+  borda.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = borda;
+  ctx.fillRect(0, 0, S, S);
+  ctx.globalCompositeOperation = 'source-over';
+
+  return toTexture(c);
+}
+
+// Bola de fogo: miolo quase branco, amarelo, laranja e borda transparente.
+export function fireTexture() {
+  const S = 256;
+  const { c, ctx } = makeCanvas(S, S);
+  const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g.addColorStop(0, 'rgba(255,252,235,1)');
+  g.addColorStop(0.22, 'rgba(255,226,140,1)');
+  g.addColorStop(0.48, 'rgba(255,150,40,0.85)');
+  g.addColorStop(0.75, 'rgba(210,70,10,0.35)');
+  g.addColorStop(1, 'rgba(120,30,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+
+  // labaredas irregulares por cima
+  for (let i = 0; i < 12; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const d = 30 + Math.random() * 50;
+    const x = S / 2 + Math.cos(ang) * d, y = S / 2 + Math.sin(ang) * d;
+    const r = 18 + Math.random() * 30;
+    const f = ctx.createRadialGradient(x, y, 0, x, y, r);
+    f.addColorStop(0, 'rgba(255,190,70,0.7)');
+    f.addColorStop(1, 'rgba(255,120,20,0)');
+    ctx.fillStyle = f;
+    ctx.fillRect(0, 0, S, S);
+  }
+  return toTexture(c);
+}
+
+// Faisca: ponto quente com brilho em volta.
+export function sparkTexture() {
+  const { c, ctx } = makeCanvas(64, 64);
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,250,220,1)');
+  g.addColorStop(0.3, 'rgba(255,190,80,0.9)');
+  g.addColorStop(1, 'rgba(255,100,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  return toTexture(c);
+}
+
+// Marca de queimado no chao: mancha escura de borda irregular.
+export function scorchTexture() {
+  const S = 256;
+  const { c, ctx } = makeCanvas(S, S);
+  for (let i = 0; i < 16; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const d = Math.random() * 40;
+    const x = S / 2 + Math.cos(ang) * d, y = S / 2 + Math.sin(ang) * d;
+    const r = 50 + Math.random() * 60;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(20,20,20,0.35)');
+    g.addColorStop(1, 'rgba(20,20,20,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+  }
   return toTexture(c);
 }
 

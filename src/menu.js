@@ -17,12 +17,13 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export class Menu {
-  constructor({ profile, settings, onCriarSala, onEntrarSala, onJogarSolo, toast }) {
+  constructor({ profile, settings, onCriarSala, onEntrarSala, onJogarSolo, onHistoria, toast }) {
     this.profile = profile;
     this.settings = settings;
     this.onCriarSala = onCriarSala;
     this.onEntrarSala = onEntrarSala;
     this.onJogarSolo = onJogarSolo;
+    this.onHistoria = onHistoria;
     this.toast = toast;
     this.aba = 'entrar';
 
@@ -85,6 +86,45 @@ export class Menu {
 
   /* ---------------- abas ---------------- */
 
+  _historia() {
+    const prog = this.profile.dados.historia || {};
+    const tempo = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    const f1 = prog.fase1;
+    return `
+      <h2>MODO HISTORIA</h2>
+      <p class="menu-sub">uma noite, um predio invadido e nenhum lugar para correr — so para cima</p>
+      <div class="fases">
+        <button class="fase-card" data-fase="fase1">
+          <span class="fase-num">1</span>
+          <span>
+            <span class="fase-nome">A SUBIDA</span>
+            <span class="fase-desc">Invadiram o seu predio no meio da noite. Sem arma, so com uma faca,
+              atravesse os corredores, suba as escadas e chegue ao helicoptero no terraco.</span>
+          </span>
+          <span class="fase-tag">${f1?.concluida ? `CONCLUIDA<br>melhor ${tempo(f1.melhorTempo)}` : 'JOGAR'}</span>
+        </button>
+        <div class="fase-card bloqueado">
+          <span class="fase-num">2</span>
+          <span>
+            <span class="fase-nome">???</span>
+            <span class="fase-desc">${f1?.concluida ? 'o helicoptero pousou em algum lugar... em breve' : 'termine a fase 1'}</span>
+          </span>
+          <span class="fase-tag">EM BREVE</span>
+        </div>
+      </div>
+      <ul class="lista-info">
+        <li>seu operador escolhido e o protagonista</li>
+        <li>chegue perto sem correr e use a faca pelas costas: abate silencioso</li>
+        <li>morreu? volta do ultimo checkpoint com o que tinha</li>
+      </ul>`;
+  }
+
+  _ligar_historia() {
+    for (const b of this.el.painel.querySelectorAll('[data-fase]')) {
+      b.onclick = () => this.onHistoria?.(b.dataset.fase, Number(this.profile.dados.operador) || 1);
+    }
+  }
+
   _solo() {
     const p = this.profile;
     const cards = Object.entries(OPERADORES).map(([id, o]) => {
@@ -103,7 +143,7 @@ export class Menu {
       <h3 class="bloco">ESCOLHA O OPERADOR</h3>
       <div class="cards">${cards}</div>
       <ul class="lista-info">
-        <li>os bots do time de frente usam o outro operador, para nao confundir</li>
+        <li>os bots do time de frente usam os outros operadores, para nao confundir</li>
         <li>aliado nao toma tiro de aliado, igual no online</li>
       </ul>
       <div class="row"><button id="btnSolo" class="primary">COMECAR PARTIDA</button></div>`;

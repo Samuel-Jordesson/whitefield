@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { World } from './world.js';
+import * as TEX from './textures.js';
 import { Player } from './player.js';
 import { Weapon } from './weapon.js';
 import { Net } from './net.js';
@@ -7,12 +8,12 @@ import { PlayerManager, loadCharacters } from './players.js';
 import { LootManager, loadLootTextures, ITEMS, TUDO, EH_ARMA } from './loot.js';
 import { DropManager } from './drops.js';
 import { GrenadeManager, throwVelocity, blastDamage, BLAST_RADIUS } from './grenade.js';
-import { SLOTS as WEAPON_SLOTS } from './weapons.js';
 import { Grass } from './grass.js';
 import { Profile } from './profile.js';
 import { Settings } from './settings.js';
 import { Menu } from './menu.js';
 import { SoloGame } from './solo.js';
+import { Historia } from './historia/historia.js';
 import { HUT_TYPES } from './huts.js';
 
 /* ---------------- render ---------------- */
@@ -33,12 +34,16 @@ const world = new World(scene);
 const player = new Player(camera, world);
 const raycaster = new THREE.Raycaster();
 const CENTER = new THREE.Vector2(0, 0);
+const MIRA_TIRO = new THREE.Vector2();
 
 const $ = (id) => document.getElementById(id);
 
-let characters, lootTextures;
+let characters, lootTextures, arvore;
 try {
-  [characters, lootTextures] = await Promise.all([loadCharacters(), loadLootTextures()]);
+  [characters, lootTextures, arvore] = await Promise.all([
+    loadCharacters(), loadLootTextures(), TEX.loadTrimmedTexture('Arvore.png', 1024),
+  ]);
+  world.setTreeImage(arvore);
 } catch (err) {
   $('loading').textContent = err.message;
   throw err;
@@ -92,6 +97,7 @@ function largarNoChao(kind) {
     kind,
     x: player.position.x + CENTER_DIR.x * 1.4,
     z: player.position.z + CENTER_DIR.z * 1.4,
+    y: player.position.y,                        // cai no andar em que voce esta
   });
   toast(TUDO[kind].name + ' no chao');
 }
@@ -99,9 +105,7 @@ function largarNoChao(kind) {
 // em qual slot a arma pega do chao deve entrar
 function slotParaArma(kind) {
   if (!EH_ARMA(kind)) return undefined;
-  const livre = loot.weapons.indexOf(null);
-  if (livre >= 0) return livre;
-  return Math.max(0, SLOT_ATUAL);          // sem espaco: troca a que esta na mao
+  return loot.campoPara(kind, SLOT_ATUAL);   // sem espaco: troca a que esta na mao
 }
 
 let SLOT_ATUAL = 0;
@@ -109,7 +113,7 @@ let abatesNaPartida = 0;
 
 // se a arma que esta na mao saiu do inventario, a mao fica vazia
 function conferirArmaNaMao() {
-  if (!weapon.isGun && weapon.key !== 'maos') return;   // granada na mao: deixa
+  if (weapon.isThrow) return;                  // granada na mao: deixa
   const esperado = loot.weaponAt(SLOT_ATUAL) || 'maos';
   if (weapon.key !== esperado) {
     weapon.equip(esperado);
@@ -153,9 +157,16 @@ async function withServer(fn) {
 const solo = new SoloGame(net, { world, player, remote });
 player.nome = profile.nome;
 
+// modo historia: tambem finge ser o servidor, com roteiro, cinematicas e checkpoints
+const historia = new Historia(net, {
+  world, player, remote, loot, scene, camera, characters, profile, toast,
+  equiparSlot: (i) => usarSlot(i),
+});
+
 // tudo que iria para a rede passa por aqui; em solo, resolve na propria maquina
 const enviarRede = net.send.bind(net);
 net.send = (type, data) => {
+  if (historia.ativo && historia.send(type, data)) return;
   if (solo.ativo && solo.send(type, data)) return;
   enviarRede(type, data);
 };
@@ -166,6 +177,10 @@ const menu = new Menu({
   toast,
   onCriarSala: () => withServer(() => net.send('create', { name: myName() })),
   onEntrarSala: (code) => withServer(() => net.send('join', { code, name: myName() })),
+  onHistoria: (fase, operador) => {
+    player.nome = profile.nome;
+    historia.comecar(fase, operador);
+  },
   onJogarSolo: (character) => {
     player.nome = profile.nome;
     solo.meuCharacter = character;
@@ -188,6 +203,7 @@ for (const btn of document.querySelectorAll('.team')) {
 }
 
 $('btnEndOk').onclick = () => {
+  if (net.room?.code === 'HISTORIA') { net.room = null; remote.clear(); show('home'); menu.abrir('historia'); return; }
   if (net.room?.code === 'SOLO') { solo.parar(); remote.clear(); show('home'); menu.fechar(); return; }
   show('lobby');
   renderLobby();
@@ -217,6 +233,9 @@ $('btnPauseVoltar').onclick = () => mostrarPausaConfig(false);
 $('btnQuit').onclick = () => {
   net.send('leave');
   solo.parar();
+  historia.parar();
+  loot.clear();
+  drops.clear();
   net.room = null;
   remote.clear();
   show('home');
@@ -279,7 +298,7 @@ function renderSelect() {
   const faltam = room.players.filter((p) => !p.ready).length;
   $('selectHint').textContent = faltam === 0
     ? 'comecando…'
-    : (net.me?.ready ? `esperando mais ${faltam} jogador(es)` : 'clique em um dos dois');
+    : (net.me?.ready ? `esperando mais ${faltam} jogador(es)` : 'clique em um deles');
 }
 
 function escapeHtml(s) {
@@ -311,17 +330,24 @@ net.on('select', () => { show('select'); renderSelect(); });
 net.on('match', (m) => {
   remote.myTeam = net.me?.team || 'A';
   remote.sync(net.room.players, net.id);
-  if (m.seed !== undefined) world.rebuild(m.seed, m.huts || []);   // mesmo cenario para todos
-  grass.setHuts(m.huts || [], (kind) => HUT_TYPES[kind] || HUT_TYPES.madeira);
+  if (!m.historia) {
+    if (historia.ativo) historia.parar();
+    world.sairHistoria();
+    if (m.seed !== undefined) world.rebuild(m.seed, m.huts || []);   // mesmo cenario para todos
+    grass.setHuts(m.huts || [], (kind) => HUT_TYPES[kind] || HUT_TYPES.madeira);
+  }
+  grass.mesh.visible = !m.historia;     // nada de grama dentro do predio
   abatesNaPartida = 0;
   correrAte = 0; visaoAte = 0;
   player.speedBoost = 1;
   remote.verTodos(false);
-  loot.spawn(m.boxes || []);
-  loot.resetBag();
+  loot.spawn(m.boxes || [], m.tombs || []);
+  SLOT_ATUAL = 0;
+  loot.resetBag();                 // nasce so com pistola e faca
+  if (m.armas || m.mochila) loot.definirCarga(m.armas, m.mochila);
+  usarSlot(0);
   drops.clear();
   drops.sync(m.drops || []);
-  SLOT_ATUAL = 0;
   grenades.clear();
   startMatch(m.spawn);
 });
@@ -355,6 +381,50 @@ function guardar(kind, slot) {
 
 net.on('boxChanged', (m) => loot.removeItem(m.box, m.index));
 
+// lapides: aparecem onde alguem morreu e somem sozinhas depois de um tempo
+net.on('tomb', (m) => loot.addTomb(m.tomb));
+net.on('tombGone', (m) => loot.removeTomb(m.id));
+
+// historia: caixa/lapide volta a ter o que tinha no checkpoint
+net.on('boxItems', (m) => {
+  const b = loot.boxes.get(m.box);
+  if (!b) return;
+  b.items = [...m.items];
+  if (loot.openBox === b) loot.renderPanel();
+});
+
+// historia: fase concluida (depois da cinematica do helicoptero)
+net.on('historiaFim', (m) => {
+  const t = `${Math.floor(m.tempo / 60)}:${String(Math.floor(m.tempo % 60)).padStart(2, '0')}`;
+  $('endTitle').textContent = 'FASE CONCLUIDA';
+  $('endSub').textContent = m.fase;
+  $('endPremio').innerHTML = `
+    <li>tempo <b>${t}</b>${m.premio.recorde ? ' · <b>novo recorde</b>' : ''}</li>
+    <li><b>${m.abates}</b> abates · <b>${m.mortes}</b> ${m.mortes === 1 ? 'morte' : 'mortes'}</li>
+    <li><b>+${m.premio.xp}</b> XP${m.premio.subiu ? ` · subiu para o <b>nivel ${profile.nivel}</b>!` : ''}</li>
+    ${m.premio.dinheiro ? `<li><b>+${m.premio.dinheiro}</b> moedas <small>(primeira vez)</small></li>` : ''}`;
+  $('btnEndOk').textContent = 'VOLTAR AO MENU';
+  document.exitPointerLock();
+  weapon.setAiming(false);
+  weapon.releaseTrigger();
+  loot.clear();
+  drops.clear();
+  grenades.clear();
+  remote.clear();
+  historia.parar();
+  show('end');
+});
+
+// morreu: tudo o que carregava fica na lapide, para qualquer um pegar
+function deixarLapide() {
+  net.send('tomb', {
+    x: player.position.x,
+    z: player.position.z,
+    items: loot.tudoQueCarrega(),
+  });
+  loot.resetBag(true);
+}
+
 net.on('healed', (m) => {
   health = m.health;
   updateHealth();
@@ -386,7 +456,7 @@ net.on('kill', (m) => {
   if (m.killer === net.id && m.victim !== net.id) abatesNaPartida++;
   killfeed(m.killerName, m.victimName, m.killerTeam);
   remote.get(m.victim)?.die();
-  if (m.victim === net.id) startDeath(m.killerName);
+  if (m.victim === net.id) { deixarLapide(); startDeath(m.killerName); }
   if (net.room) { remote.sync(net.room.players, net.id); renderScoreboard(); }
 });
 
@@ -401,6 +471,7 @@ net.on('matchEnd', (m) => {
     ? (venceu ? 'SEU TIME VENCEU!' : 'SEU TIME PERDEU')
     : `TIME ${m.winner} VENCEU`;
   $('endSub').textContent = `time A ${s.A} x ${s.B} time B`;
+  $('btnEndOk').textContent = net.room?.code === 'SOLO' ? 'VOLTAR AO MENU' : 'VOLTAR PARA A SALA';
 
   // 1 moeda por abate, dobrada na vitoria; perdendo, nao leva o que juntou
   const premio = profile.fecharPartida({ abates: abatesNaPartida, venceu });
@@ -422,16 +493,21 @@ net.on('matchEnd', (m) => {
   show('end');
 });
 
-net.on('respawned', (m) => remote.get(m.id)?.respawn(m.x, m.z));
+net.on('respawned', (m) => remote.get(m.id)?.respawn(m.x, m.z, m.y || 0));
 
 net.on('respawn', (m) => {
   dead = false;
-  health = 100;
+  health = m.health ?? 100;
   updateHealth();
   weapon.refill();
+  SLOT_ATUAL = 0;
+  loot.resetBag();                 // volta so com pistola e faca
+  if (m.armas || m.mochila) loot.definirCarga(m.armas, m.mochila);   // historia: o que tinha no checkpoint
+  usarSlot(m.armas && !m.armas[0] ? 2 : 0);
   $('respawn').classList.add('hidden');
-  player.position.set(m.spawn.x, 0, m.spawn.z);
+  player.position.set(m.spawn.x, m.spawn.y || 0, m.spawn.z);
   player.velocity.set(0, 0, 0);
+  if (m.spawn.yaw !== undefined) { player.yaw = m.spawn.yaw; player.pitch = 0; }
   net.send('state', stateMsg());
 });
 
@@ -452,9 +528,9 @@ function startMatch(spawn) {
   updateHealth();
   $('respawn').classList.add('hidden');
   $('killfeed').innerHTML = '';
-  player.position.set(spawn.x, 0, spawn.z);
+  player.position.set(spawn.x, spawn.y || 0, spawn.z);
   player.velocity.set(0, 0, 0);
-  player.yaw = Math.atan2(spawn.x, spawn.z);   // olhando para o meio do campo
+  player.yaw = spawn.yaw ?? Math.atan2(spawn.x, spawn.z);   // olhando para o meio do campo
   player.pitch = 0;
   renderScoreboard();
   show('match');
@@ -559,7 +635,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 addEventListener('mousemove', (e) => {
-  if (!running || dead) return;
+  if (!running || dead || historia.emCena) return;
   aiming.dx = e.movementX;
   aiming.dy = e.movementY;
   player.look(e.movementX, e.movementY);
@@ -568,7 +644,7 @@ addEventListener('mousemove', (e) => {
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 addEventListener('mousedown', (e) => {
-  if (!running || dead) return;
+  if (!running || dead || historia.emCena) return;
   if (e.button === 0) weapon.pullTrigger();
   if (e.button === 2) { weapon.setAiming(true); sendStateNow(); }
 });
@@ -665,7 +741,7 @@ addEventListener('keydown', (e) => {
     if (['KeyE', 'KeyI', 'Escape'].includes(e.code)) { e.preventDefault(); loot.close(); }
     return;
   }
-  if (!running || dead) return;
+  if (!running || dead || historia.emCena) return;
 
   switch (e.code) {
     case 'KeyR': weapon.reload(); break;
@@ -675,7 +751,10 @@ addEventListener('keydown', (e) => {
     case 'KeyQ': useHeal(); break;
     case 'KeyC': useCigarro(); break;
     case 'Digit3': usarSlot(2); break;
-    case 'KeyE': drops.focused ? drops.take() : loot.toggle(); break;
+    case 'KeyE':
+      if (historia.interagir()) break;           // helicoptero do final
+      drops.focused ? drops.take() : loot.toggle();
+      break;
     case 'KeyI': loot.toggleBag(); break;
   }
 });
@@ -688,21 +767,45 @@ addEventListener('keyup', (e) => {
 
 function shoot() {
   if (weapon.isMelee) return facada();
-  const kick = weapon.spec.spread;
+  const spec = weapon.spec;
+  const kick = spec.spread;
   const calm = weapon.aim > 0.5 ? 0.4 : 1;
   player.pitch = Math.min(Math.PI / 2 - 0.02, player.pitch + (kick.pitch + Math.random() * 0.012) * calm);
   player.yaw += (Math.random() - 0.5) * kick.yaw * calm;
-
-  const hit = aimRay(220);
   net.send('shot', { x: player.position.x, y: player.position.y + 1.5, z: player.position.z });
-  if (!hit) return;
 
-  const target = hit.object.userData.player;
-  remote.puff(hit.point);
-  if (target && target.alive && !target.aliado) {
-    target.hurt();
-    net.send('hit', { target: target.id, damage: weapon.damage });
+  // escopeta abre um leque; sniper sem luneta sai desviado; o resto vai reto
+  const bolinhas = spec.pellets || 1;
+  const abertura = spec.pellets
+    ? (weapon.aim > 0.5 ? spec.cone[1] : spec.cone[0])
+    : (spec.hipSpread || 0) * (1 - weapon.aim);
+
+  // soma o dano de todas as bolinhas por alvo e manda um hit so por pessoa
+  const danoPorAlvo = new Map();
+  for (let i = 0; i < bolinhas; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random()) * abertura;
+    // x dividido pelo aspecto: sem isso o leque sai achatado, mais largo que alto
+    const hit = aimRay(spec.alcance || 220, Math.cos(ang) * r / camera.aspect, Math.sin(ang) * r);
+    if (!hit) continue;
+    remote.puff(hit.point);
+    const alvo = hit.object.userData.player;
+    if (alvo && alvo.alive && !alvo.aliado) {
+      danoPorAlvo.set(alvo, (danoPorAlvo.get(alvo) || 0) + danoNaDistancia(spec, hit.distance));
+    }
   }
+  for (const [alvo, dano] of danoPorAlvo) {
+    alvo.hurt();
+    net.send('hit', { target: alvo.id, damage: Math.round(dano) });
+  }
+}
+
+// escopeta perde forca com a distancia; as outras armas batem igual
+function danoNaDistancia(spec, dist) {
+  if (!spec.queda) return spec.damage;
+  const [perto, longe] = spec.queda;
+  const t = Math.min(1, Math.max(0, (dist - perto) / (longe - perto)));
+  return spec.damage * (1 - t * 0.8);
 }
 
 // golpe de faca: mesmo raio do tiro, so que bem curtinho
@@ -713,19 +816,46 @@ function facada() {
   remote.puff(hit.point);
   if (alvo && alvo.alive && !alvo.aliado) {
     alvo.hurt();
-    net.send('hit', { target: alvo.id, damage: weapon.spec.damage });
+    net.send('hit', { target: alvo.id, damage: weapon.spec.damage, faca: true });
   }
 }
 
-// raycast do centro da tela contra jogadores, caixas e cenario
-function aimRay(far = 220) {
-  raycaster.setFromCamera(CENTER, camera);
+// O raycaster so enxerga o retangulo do sprite, nao o desenho: a arvore vira um
+// muro invisivel de 5 a 8 m e a bala parava no vazio ao lado do tronco. Aqui a
+// transparencia de cada textura e lida uma vez so, e o raio atravessa o vazio.
+const ALPHA_CACHE = new WeakMap();
+function alphaNoAcerto(hit) {
+  const mat = hit.object.material;
+  if (!(mat?.alphaTest > 0) || !mat.map || !hit.uv) return 1;   // cabana, chao: solido
+  let d = ALPHA_CACHE.get(mat.map);
+  if (!d) {
+    let img = mat.map.image;
+    if (!img?.width) return 1;
+    if (!img.getContext) {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      img = c;
+    }
+    d = { w: img.width, h: img.height, px: img.getContext('2d').getImageData(0, 0, img.width, img.height).data };
+    ALPHA_CACHE.set(mat.map, d);
+  }
+  const x = Math.min(d.w - 1, Math.max(0, Math.floor(hit.uv.x * d.w)));
+  const y = Math.min(d.h - 1, Math.max(0, Math.floor((1 - hit.uv.y) * d.h)));
+  return d.px[(y * d.w + x) * 4 + 3] / 255;
+}
+
+// raycast do centro da tela (com desvio opcional) contra jogadores, caixas e cenario
+function aimRay(far = 220, desvioX = 0, desvioY = 0) {
+  MIRA_TIRO.set(desvioX, desvioY);
+  raycaster.setFromCamera(MIRA_TIRO, camera);
   raycaster.near = 0.7;
   raycaster.far = far;
   const hits = raycaster.intersectObjects(
     [...remote.hittables, ...loot.meshes, ...world.props, ...world.huts, world.ground], true
   );
-  return hits[0] || null;
+  // mesmo limite do alphaTest dos sprites: o que nao aparece na tela nao segura bala
+  return hits.find((h) => alphaNoAcerto(h) >= 0.5) || null;
 }
 
 /* ---------------- granada ---------------- */
@@ -758,6 +888,10 @@ function throwGrenade() {
 
 // so quem jogou calcula quem estava perto — mesma regra do tiro
 function explode(point, g) {
+  // o chao treme para todo mundo que estiver perto, nao so para quem jogou
+  const perto = camera.position.distanceTo(point);
+  tremor = Math.max(tremor, Math.max(0, 1 - perto / 30));
+
   if (!g.mine) return;
   for (const p of remote.list) {
     if (!p.alive || p.aliado) continue;
@@ -776,21 +910,34 @@ function explode(point, g) {
 
 const clock = new THREE.Clock();
 let damageTimer = 0;
+let tremor = 0;     // tremida da camera depois de uma explosao (0 a 1)
 
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
 
-  const jogando = running && phase === 'match' && !dead;
-  player.update(jogando ? dt : 0);
+  // durante a cinematica quem manda na camera e ela, nao o jogador
+  const emCena = historia.emCena;
+  const jogando = running && phase === 'match' && !dead && !emCena;
+  if (!emCena) player.update(jogando ? dt : 0);
+  if (historia.ativo && phase === 'match') historia.update(dt);
+
+  // a camera chacoalha e vai acalmando
+  if (tremor > 0) {
+    const f = tremor * tremor;
+    camera.position.x += (Math.random() - 0.5) * f * 0.35;
+    camera.position.y += (Math.random() - 0.5) * f * 0.25;
+    camera.rotation.z = (Math.random() - 0.5) * f * 0.06;
+    tremor = Math.max(0, tremor - dt * 1.6);
+  }
 
   // mira: zoom na camera e mouse mais lento (cada arma tem o seu zoom)
   weapon.update(dt, player, aiming);
-  player.lookScale = 1 - weapon.aim * 0.55;
+  player.lookScale = 1 - weapon.aim * (weapon.spec.adsSens ?? 0.55);
   const base = camera.userData.fovBase || FOV_HIP;
   const alvoFov = weapon.spec.fov ?? FOV_ADS;
   const fov = base + (alvoFov - base) * weapon.aim;
-  if (Math.abs(camera.fov - fov) > 0.01) {
+  if (!historia.emCena && Math.abs(camera.fov - fov) > 0.01) {
     camera.fov = fov;
     camera.updateProjectionMatrix();
   }
@@ -863,6 +1010,7 @@ frame();
 
 // atalho para inspecionar/depurar pelo console do navegador
 window.__wf = { scene, camera, renderer, world, player, weapon, remote, net, loot, grenades,
+  raycaster,
   profile, settings, menu, fase: () => phase, show,
   grass, drops, solo, equipSlot, usarSlot, toggleGrenade, useHeal, useCigarro, aimRay,
-  throwGrenade, largarNoChao };
+  throwGrenade, largarNoChao, historia };

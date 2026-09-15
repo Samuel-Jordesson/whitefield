@@ -6,6 +6,7 @@ const CHAVE = 'wf-perfil';
 export const OPERADORES = {
   1: { nome: 'Personagem 1', img: 'perssonagem1/parado.png', preco: 0 },
   2: { nome: 'Personagem 2', img: 'perssonagem2/parado.png', preco: 60 },
+  3: { nome: 'Jaime', img: 'Jaime/1.png', preco: 0 },
 };
 
 export const FUNDOS = {
@@ -63,7 +64,11 @@ export class Profile {
   get xpFalta() { return xpDoNivel(this.dados.nivel) - this.dados.xp; }
   get progresso() { return this.dados.xp / xpDoNivel(this.dados.nivel); }
 
-  temItem(id) { return this.dados.comprados.includes(id); }
+  // operador de graca vale como ja comprado (inclusive em perfis antigos)
+  temItem(id) {
+    if (id.startsWith('op') && OPERADORES[id.slice(2)]?.preco === 0) return true;
+    return this.dados.comprados.includes(id);
+  }
 
   // devolve true se deu para pagar
   comprar(id, preco) {
@@ -98,6 +103,21 @@ export class Profile {
     }
     this.salvar();
     return this.dados.nivel - antes;   // quantos niveis subiu
+  }
+
+  // Modo historia: a primeira vez da moedas e bastante XP; repetir so da XP.
+  concluirFase(id, tempo, abates) {
+    const hist = (this.dados.historia ||= {});
+    const antes = hist[id];
+    const primeira = !antes?.concluida;
+    const recorde = !antes?.melhorTempo || tempo < antes.melhorTempo;
+    hist[id] = { concluida: true, melhorTempo: recorde ? tempo : antes.melhorTempo };
+    const dinheiro = primeira ? 30 : 0;
+    const xp = (primeira ? 250 : 60) + abates * 5;
+    this.dados.dinheiro += dinheiro;
+    this.dados.abates += abates;
+    const subiu = this.ganharXp(xp);   // ja salva
+    return { dinheiro, xp, subiu, primeira, recorde };
   }
 
   // Fim de partida. Ganha 1 por abate; vencendo, dobra; perdendo, nao leva

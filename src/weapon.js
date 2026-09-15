@@ -24,7 +24,9 @@ export class Weapon {
     this.onThrow = onThrow;
 
     // municao guardada por arma, para nao zerar ao trocar
-    this.ammoOf = { rifle: WEAPONS.rifle.mag, pistola: WEAPONS.pistola.mag };
+    this.ammoOf = Object.fromEntries(
+      Object.entries(WEAPONS).filter(([, w]) => w.kind === 'gun').map(([k, w]) => [k, w.mag])
+    );
     this.swing = 0;          // animacao do golpe de faca
 
     this.cooldown = 0;
@@ -76,6 +78,7 @@ export class Weapon {
       this.muzzle.style.left = this.spec.muzzle.x * 100 + '%';
       this.muzzle.style.top = this.spec.muzzle.y * 100 + '%';
       this.scopeImg.src = this.spec.scope;
+      this.scopeWrap.classList.toggle('luneta', !!this.spec.luneta);
       this.scopeImg.style.height = this.spec.scopeHeight + 'vh';
       this.muzzleAds.style.left = this.spec.aimPoint.x * 100 + '%';
       this.ammoBox.classList.remove('hidden');
@@ -202,6 +205,9 @@ export class Weapon {
     const target = this.aiming ? 1 : 0;
     this.aim += (target - this.aim) * Math.min(1, dt * 11);
     this.crosshair.classList.toggle('aiming', this.aim > 0.5 && this.isGun);
+    this.crosshair.classList.toggle('luneta', this.aim > 0.5 && !!this.spec.luneta);
+    // com a tela escura em volta da lente, o HUD passa a usar texto claro
+    document.body.classList.toggle('na-luneta', this.aim > 0.5 && !!this.spec.luneta);
 
     // a facada: vai rapido e volta
     if (this.swing > 0) this.swing = Math.max(0, this.swing - dt * 3.4);
@@ -270,8 +276,14 @@ export class Weapon {
     const aimX = this.spec.aimPoint.x * w * zoom;
     const aimY = this.spec.aimPoint.y * h * zoom;
 
-    const sx = this.swayX * 0.5;
-    const sy = this.swayY * 0.5 - this.recoil * 14;
+    let sx = this.swayX * 0.5;
+    let sy = this.swayY * 0.5 - this.recoil * 14;
+    if (this.spec.luneta) {
+      // respiracao: a luneta nunca fica parada de todo
+      const agora = performance.now();
+      sx += Math.sin(agora * 0.0011) * 3;
+      sy += Math.sin(agora * 0.0017) * 2.5 - this.recoil * 30;
+    }
 
     this.scopeWrap.style.opacity = t.toFixed(3);
     this.scopeWrap.style.transform =
