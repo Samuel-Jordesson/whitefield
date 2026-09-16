@@ -2,8 +2,14 @@ import * as THREE from 'three';
 
 // Configuracoes graficas e de controle. Tudo aqui muda o jogo de verdade —
 // nada de opcao que so fica bonita na tela.
+//
+// Dois tipos: opcoes com botoes (`valores`) e barras deslizantes (`tipo: 'barra'`),
+// que guardam um numero.
 
 const CHAVE = 'wf-config';
+
+// 1 ponto da barra de sensibilidade = este tanto de radiano por pixel do mouse
+export const SENS_POR_PONTO = 0.00044;
 
 export const OPCOES = {
   grama: {
@@ -70,17 +76,38 @@ export const OPCOES = {
     padrao: 'p75',
   },
   sensibilidade: {
+    tipo: 'barra',
     titulo: 'Sensibilidade do mouse',
-    ajuda: 'quanto a mira anda com o mouse',
+    ajuda: 'quanto a camera gira com o mouse',
+    min: 0.5, max: 15, passo: 0.1, padrao: 5,
+    formato: (v) => v.toFixed(1),
+    // salvos antigos eram botoes: converte para a barra
+    antigos: { baixa: 3.2, media: 5, alta: 7.7, altissima: 11.4 },
+  },
+  sensMira: {
+    tipo: 'barra',
+    titulo: 'Sensibilidade mirando',
+    ajuda: 'botao direito: 100% = igual sem mirar (a sniper sempre fica mais lenta)',
+    min: 10, max: 150, passo: 5, padrao: 80,
+    formato: (v) => Math.round(v) + '%',
+  },
+  corMira: {
+    titulo: 'Cor da mira',
+    ajuda: 'a cruz e o ponto no centro, inclusive mirando',
     valores: {
-      baixa: { nome: 'Baixa', valor: 0.0014 },
-      media: { nome: 'Media', valor: 0.0022 },
-      alta: { nome: 'Alta', valor: 0.0034 },
-      altissima: { nome: 'Altissima', valor: 0.005 },
+      vermelho: { nome: 'Vermelho', cor: '#ff2a2a' },
+      verde: { nome: 'Verde', cor: '#1fe05a' },
+      ciano: { nome: 'Ciano', cor: '#18d4ff' },
+      amarelo: { nome: 'Amarelo', cor: '#ffd21f' },
+      rosa: { nome: 'Rosa', cor: '#ff3df2' },
+      branco: { nome: 'Branco', cor: '#ffffff' },
+      preto: { nome: 'Preto', cor: '#111111' },
     },
-    padrao: 'media',
+    padrao: 'vermelho',
   },
 };
+
+const ehBarra = (chave) => OPCOES[chave].tipo === 'barra';
 
 export class Settings {
   constructor() {
@@ -88,18 +115,40 @@ export class Settings {
     for (const [chave, op] of Object.entries(OPCOES)) this.valores[chave] = op.padrao;
     try {
       const salvo = JSON.parse(localStorage.getItem(CHAVE) || '{}');
-      for (const chave of Object.keys(OPCOES)) {
-        if (salvo[chave] && OPCOES[chave].valores[salvo[chave]]) this.valores[chave] = salvo[chave];
+      for (const [chave, op] of Object.entries(OPCOES)) {
+        const v = salvo[chave];
+        if (v === undefined) continue;
+        if (ehBarra(chave)) {
+          const n = typeof v === 'number' ? v : op.antigos?.[v];
+          if (Number.isFinite(n)) this.valores[chave] = this._limitar(chave, n);
+        } else if (op.valores[v]) {
+          this.valores[chave] = v;
+        }
       }
     } catch { /* usa o padrao */ }
   }
 
-  get(chave) { return OPCOES[chave].valores[this.valores[chave]]; }
+  _limitar(chave, n) {
+    const op = OPCOES[chave];
+    // toFixed tira o lixo de ponto flutuante (1.2000000000000002)
+    return Math.min(op.max, Math.max(op.min, +(Math.round(n / op.passo) * op.passo).toFixed(4)));
+  }
+
+  // barra devolve o numero; botao devolve o objeto da opcao escolhida
+  get(chave) {
+    return ehBarra(chave) ? this.valores[chave] : OPCOES[chave].valores[this.valores[chave]];
+  }
   chaveDe(chave) { return this.valores[chave]; }
 
   set(chave, valor) {
-    if (!OPCOES[chave]?.valores[valor]) return;
-    this.valores[chave] = valor;
+    if (ehBarra(chave)) {
+      const n = Number(valor);
+      if (!Number.isFinite(n)) return;
+      this.valores[chave] = this._limitar(chave, n);
+    } else {
+      if (!OPCOES[chave]?.valores[valor]) return;
+      this.valores[chave] = valor;
+    }
     try { localStorage.setItem(CHAVE, JSON.stringify(this.valores)); } catch { /* ok */ }
     this.aplicar(chave);
   }
@@ -151,7 +200,14 @@ export class Settings {
         break;
 
       case 'sensibilidade':
-        a.player.sensitivity = v.valor;
+        a.player.sensitivity = v * SENS_POR_PONTO;
+        break;
+
+      case 'sensMira':
+        break;                                // lido a cada quadro no loop do jogo
+
+      case 'corMira':
+        document.documentElement.style.setProperty('--mira', v.cor);
         break;
 
       case 'grama':
@@ -159,4 +215,11 @@ export class Settings {
         break;
     }
   }
+}
+
+// o quanto o mouse anda com a mira armada, para esta arma (1 = igual sem mirar)
+// adsSens de cada arma diz o quanto ela freia; a barra escala isso
+export function escalaMirando(settings, adsSens = 0.55) {
+  const porArma = (1 - adsSens) / 0.45;       // rifle/pistola = 1, sniper ~0.4
+  return Math.min(1.5, Math.max(0.05, porArma * settings.get('sensMira') / 100));
 }

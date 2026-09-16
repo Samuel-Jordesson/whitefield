@@ -9,6 +9,9 @@ export const OPERADORES = {
   3: { nome: 'Jaime', img: 'Jaime/1.png', preco: 0 },
 };
 
+// com o que um operador nasce se ninguem mexeu no EQUIPAR: arma 1, arma 2, faca
+export const CARGA_PADRAO = ['pistola', null, 'faca'];
+
 export const FUNDOS = {
   fundo1: { nome: 'Trincheira', img: 'fundo1.jpeg', preco: 0 },
 };
@@ -85,6 +88,17 @@ export class Profile {
     this.dados.operador = Number(id);
     this.salvar();
     return true;
+  }
+
+  // armas iniciais de cada operador (escolhidas no EQUIPAR)
+  cargaDe(op) {
+    const c = this.dados.cargas?.[op];
+    return Array.isArray(c) && c.length === 3 ? [...c] : [...CARGA_PADRAO];
+  }
+
+  definirCarga(op, carga) {
+    (this.dados.cargas ||= {})[op] = [carga[0] || null, carga[1] || null, carga[2] || null];
+    this.salvar();
   }
 
   escolherFundo(id) {

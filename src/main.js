@@ -10,11 +10,13 @@ import { DropManager } from './drops.js';
 import { GrenadeManager, throwVelocity, blastDamage, BLAST_RADIUS } from './grenade.js';
 import { Grass } from './grass.js';
 import { Profile } from './profile.js';
-import { Settings } from './settings.js';
+import { Settings, escalaMirando } from './settings.js';
 import { Menu } from './menu.js';
 import { SoloGame } from './solo.js';
 import { Historia } from './historia/historia.js';
 import { HUT_TYPES } from './huts.js';
+import { Bussola } from './bussola.js';
+import { ControlesToque } from './toque.js';
 
 /* ---------------- render ---------------- */
 
@@ -38,6 +40,10 @@ const MIRA_TIRO = new THREE.Vector2();
 
 const $ = (id) => document.getElementById(id);
 
+// celular/tablet (ou ?mobile=1 para testar no PC): controles de toque, sem pointer lock
+const MOBILE = /[?&]mobile=1/.test(location.search) || matchMedia('(pointer: coarse)').matches;
+if (MOBILE) document.body.classList.add('toque');
+
 let characters, lootTextures, arvore;
 try {
   [characters, lootTextures, arvore] = await Promise.all([
@@ -50,14 +56,16 @@ try {
 }
 
 const remote = new PlayerManager(scene, characters);
+const bussola = new Bussola();
 const weapon = new Weapon({ onShoot: shoot, onThrow: throwGrenade });
 const net = new Net();
 
 const loot = new LootManager(scene, lootTextures, {
+  world,
   onTake: (box, index, slot) => net.send('take', { box, index, slot }),
   onLockChange: (lock) => {
     if (lock) lockMouse();
-    else document.exitPointerLock();
+    else soltarMouse();
   },
   onDrop: (kind) => largarNoChao(kind),
   onWeaponsChange: () => conferirArmaNaMao(),
@@ -71,6 +79,8 @@ const grenades = new GrenadeManager(scene, { onExplode: explode });
 const grass = new Grass(scene);
 
 const profile = new Profile();
+// cada operador nasce com as armas escolhidas no EQUIPAR
+loot.cargaInicial = () => profile.cargaDe(net.me?.character ?? profile.dados.operador);
 const settings = new Settings();
 settings.ligar({ renderer, camera, scene, world, player, grass });
 
@@ -84,6 +94,7 @@ let running = false;       // pointer lock ativo
 let dead = false;
 let respawnLeft = 0;
 let health = 100;
+let colete = 0;          // pontos do colete vestido (0 = sem colete)
 let sendTimer = 0;
 const aiming = { dx: 0, dy: 0 };
 const CENTER_DIR = new THREE.Vector3();
@@ -127,10 +138,13 @@ const SCREEN_IDS = ['home', 'lobby', 'select', 'pause', 'end'];
 
 function show(name) {
   phase = name;
+  if (MOBILE && name !== 'match') running = false;          // no celular "rodando" = estar na partida
+  document.body.classList.toggle('em-partida', name === 'match');
   screens.classList.toggle('hidden', name === 'match');
   for (const id of SCREEN_IDS) $('screen-' + id).classList.toggle('hidden', id !== name);
   $('hud').classList.toggle('hidden', name !== 'match' && name !== 'pause');
   $('weaponWrap').classList.toggle('hidden', name !== 'match' && name !== 'pause');
+  atualizarTelaCheia();          // botao de tela cheia: sempre no menu, na partida so no celular
 }
 
 let toastTimer = 0;
@@ -404,7 +418,7 @@ net.on('historiaFim', (m) => {
     <li><b>+${m.premio.xp}</b> XP${m.premio.subiu ? ` · subiu para o <b>nivel ${profile.nivel}</b>!` : ''}</li>
     ${m.premio.dinheiro ? `<li><b>+${m.premio.dinheiro}</b> moedas <small>(primeira vez)</small></li>` : ''}`;
   $('btnEndOk').textContent = 'VOLTAR AO MENU';
-  document.exitPointerLock();
+  soltarMouse();
   weapon.setAiming(false);
   weapon.releaseTrigger();
   loot.clear();
@@ -424,6 +438,12 @@ function deixarLapide() {
   });
   loot.resetBag(true);
 }
+
+net.on('vestiu', (m) => {
+  colete = m.colete;
+  updateHealth();
+  toast('colete vestido');
+});
 
 net.on('healed', (m) => {
   health = m.health;
@@ -445,6 +465,7 @@ net.on('left', (m) => remote.remove(m.id));
 
 net.on('hurt', (m) => {
   health = m.health;
+  if (m.colete !== undefined) colete = m.colete;
   updateHealth();
   $('damage').classList.add('on');
   damageTimer = 0.3;
@@ -482,7 +503,7 @@ net.on('matchEnd', (m) => {
       ? `<b>+${premio.dinheiro}</b> moedas <small>(dobrado pela vitoria)</small>`
       : `<b>0</b> moedas <small>(perdeu as ${premio.perdido} que juntou na partida)</small>`}</li>`;
   abatesNaPartida = 0;
-  document.exitPointerLock();
+  soltarMouse();
   weapon.setAiming(false);
   weapon.releaseTrigger();
   loot.close();
@@ -498,6 +519,7 @@ net.on('respawned', (m) => remote.get(m.id)?.respawn(m.x, m.z, m.y || 0));
 net.on('respawn', (m) => {
   dead = false;
   health = m.health ?? 100;
+  colete = 0;
   updateHealth();
   weapon.refill();
   SLOT_ATUAL = 0;
@@ -523,6 +545,7 @@ net.on('close', () => {
 function startMatch(spawn) {
   dead = false;
   health = 100;
+  colete = 0;
   loot.close();
   weapon.refill();
   updateHealth();
@@ -538,12 +561,101 @@ function startMatch(spawn) {
 }
 
 function lockMouse() {
+  // celular nao tem pointer lock: voltar ao jogo e so liberar os controles
+  if (MOBILE) {
+    running = true;
+    $('voltarJogo').classList.add('hidden');
+    if (phase === 'pause') show('match');
+    return;
+  }
   // em alguns contextos (iframe, aba sem foco) o navegador recusa — e tudo bem
   try {
     const p = canvas.requestPointerLock();
-    if (p && typeof p.catch === 'function') p.catch(() => {});
-  } catch { /* ignora */ }
+    if (p && typeof p.catch === 'function') p.catch(() => pedirClique());
+  } catch { pedirClique(); }
+  // navegador que nao devolve promise: confere um pouco depois se prendeu
+  setTimeout(() => { if (document.pointerLockElement !== canvas) pedirClique(); }, 350);
 }
+
+// Fechar o inventario com ESC nao conta como gesto do usuario, e o navegador
+// recusa prender o mouse. Em vez de o jogo ficar parado sem mira, aparece um
+// "clique para voltar" — o clique conta, e o mouse volta preso.
+function pedirClique() {
+  if (phase !== 'match' || loot.aberto || historia.emCena || dead) return;
+  if (document.pointerLockElement === canvas) return;
+  $('voltarJogo').classList.remove('hidden');
+}
+$('voltarJogo').onclick = () => { $('voltarJogo').classList.add('hidden'); lockMouse(); };
+
+function soltarMouse() {
+  if (MOBILE) running = false;
+  else document.exitPointerLock();
+}
+
+// pausa sem ESC (botao do celular)
+function pausar() {
+  if (phase !== 'match') return;
+  running = false;
+  weapon.setAiming(false);
+  weapon.releaseTrigger();
+  mostrarPausaConfig(false);
+  show('pause');
+}
+
+$('lootFechar').onclick = () => loot.close();
+
+/* ---------------- celular ---------------- */
+
+const toque = MOBILE ? new ControlesToque({
+  player,
+  acoes: {
+    // reaproveita todo o teclado: o botao "aperta" a tecla
+    tecla: (code) => dispatchEvent(new KeyboardEvent('keydown', { code, key: code })),
+    olhar: (dx, dy) => {
+      if (!running || dead || historia.emCena) return;
+      aiming.dx = dx; aiming.dy = dy;
+      player.look(dx * 1.5, dy * 1.5);
+    },
+    atirar: (on) => {
+      if (!on) { weapon.releaseTrigger(); return; }
+      if (running && !dead && !historia.emCena) weapon.pullTrigger();
+    },
+    mirar: (on) => { if (running && !dead) { weapon.setAiming(on); sendStateNow(); } },
+    trocarArma: () => { if (running && !dead && !historia.emCena) cycleWeapon(1); },
+    pausar: () => pausar(),
+    pularCena: () => dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' })),
+  },
+}) : null;
+
+// Tela cheia (como o F11). O botao fica sempre na pagina inicial e, no celular,
+// tambem durante a partida; some quando a tela ja esta cheia (ou quando o jogo
+// foi aberto pelo atalho da tela de inicio, que ja abre sem barra).
+const IPHONE = /iPhone|iPod/.test(navigator.userAgent);
+function atualizarTelaCheia() {
+  const el = document.documentElement;
+  const pode = !!(el.requestFullscreen || el.webkitRequestFullscreen) || IPHONE;
+  const cheia = !!(document.fullscreenElement || document.webkitFullscreenElement)
+    || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone;
+  const lugar = phase === 'home' || MOBILE;
+  $('telaCheia').classList.toggle('hidden', !pode || cheia || !lugar);
+}
+$('telaCheia').onclick = async () => {
+  const el = document.documentElement;
+  if (!el.requestFullscreen && !el.webkitRequestFullscreen) {
+    // iPhone: o Safari nao deixa pagina ficar em tela cheia; o atalho na tela de inicio deixa
+    toast('no iPhone: toque em Compartilhar e depois em "Adicionar a Tela de Inicio" — abrindo por la o jogo fica em tela cheia', 7);
+    return;
+  }
+  try {
+    await (el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : el.webkitRequestFullscreen());
+  } catch { /* navegador recusou */ }
+  // deitado fica melhor para jogar (so funciona em tela cheia, e nem todo celular deixa)
+  try { await screen.orientation?.lock?.('landscape'); } catch { /* ok */ }
+  atualizarTelaCheia();
+};
+document.addEventListener('fullscreenchange', atualizarTelaCheia);
+document.addEventListener('webkitfullscreenchange', atualizarTelaCheia);
+atualizarTelaCheia();
 
 // avisa os outros na hora (sem esperar o proximo tick de 50ms)
 function sendStateNow() {
@@ -580,6 +692,8 @@ function startDeath(killerName) {
 function updateHealth() {
   $('health').textContent = health;
   $('health').classList.toggle('low', health <= 35);
+  $('colete').textContent = colete;
+  $('coleteStat').classList.toggle('hidden', colete <= 0);
 }
 
 function killfeed(killer, victim, time) {
@@ -624,6 +738,7 @@ function renderScoreboard() {
 
 document.addEventListener('pointerlockchange', () => {
   running = document.pointerLockElement === canvas;
+  if (running) $('voltarJogo').classList.add('hidden');
   if (running) {
     show('match');
   } else if (phase === 'match' && !loot.aberto) {   // o inventario solta o mouse de proposito
@@ -644,18 +759,21 @@ addEventListener('mousemove', (e) => {
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 addEventListener('mousedown', (e) => {
+  if (MOBILE) return;                    // o toque tambem gera mouse falso: os botoes cuidam disso
   if (!running || dead || historia.emCena) return;
   if (e.button === 0) weapon.pullTrigger();
   if (e.button === 2) { weapon.setAiming(true); sendStateNow(); }
 });
 
 addEventListener('mouseup', (e) => {
+  if (MOBILE) return;
   if (e.button === 0) weapon.releaseTrigger();
   if (e.button === 2) { weapon.setAiming(false); sendStateNow(); }
 });
 
 // roda do mouse troca de arma
 addEventListener('wheel', (e) => {
+  if (MOBILE) return;
   if (!running || dead) return;
   cycleWeapon(e.deltaY > 0 ? 1 : -1);
 }, { passive: true });
@@ -724,6 +842,13 @@ function atualizarCigarro() {
   }
 }
 
+// V veste um colete da mochila (so troca se o atual ja levou tiro)
+function useColete() {
+  if (colete >= 100) { toast('colete ainda inteiro'); return; }
+  if (!loot.consume('colete')) { toast('sem colete na mochila'); return; }
+  net.send('colete');
+}
+
 // Q usa um curativo
 function useHeal() {
   if (health >= 100) { toast('vida cheia'); return; }
@@ -738,6 +863,7 @@ addEventListener('keydown', (e) => {
   }
   // com a caixa aberta o teclado so serve para fechar
   if (loot.aberto) {
+    // E, I ou ESC fecham (o ESC ja chega aqui porque o mouse esta solto)
     if (['KeyE', 'KeyI', 'Escape'].includes(e.code)) { e.preventDefault(); loot.close(); }
     return;
   }
@@ -750,6 +876,7 @@ addEventListener('keydown', (e) => {
     case 'KeyG': toggleGrenade(); break;
     case 'KeyQ': useHeal(); break;
     case 'KeyC': useCigarro(); break;
+    case 'KeyV': useColete(); break;
     case 'Digit3': usarSlot(2); break;
     case 'KeyE':
       if (historia.interagir()) break;           // helicoptero do final
@@ -933,7 +1060,8 @@ function frame() {
 
   // mira: zoom na camera e mouse mais lento (cada arma tem o seu zoom)
   weapon.update(dt, player, aiming);
-  player.lookScale = 1 - weapon.aim * (weapon.spec.adsSens ?? 0.55);
+  // mirando, o mouse anda o que a barra "sensibilidade mirando" mandar
+  player.lookScale = 1 + (escalaMirando(settings, weapon.spec.adsSens) - 1) * weapon.aim;
   const base = camera.userData.fovBase || FOV_HIP;
   const alvoFov = weapon.spec.fov ?? FOV_ADS;
   const fov = base + (alvoFov - base) * weapon.aim;
@@ -978,6 +1106,17 @@ function frame() {
 
   if (solo.ativo && phase === 'match') solo.update(dt);
   atualizarCigarro();
+  if (phase === 'match' || phase === 'pause') bussola.update(player, remote);
+  if (toque) {
+    toque.update({
+      jogando: phase === 'match' && running && !dead && !loot.aberto,
+      emCena: historia.emCena,
+      isGun: weapon.isGun,
+      mirando: weapon.wantAim,
+      usar: !!(loot.focused || drops.focused || (historia.ativo && historia.fase && historia._pertoDoHeli())),
+      qtd: { granada: loot.count('granada'), vida: loot.count('vida'), colete: loot.count('colete'), cigarro: loot.count('cigarro') },
+    });
+  }
 
   aiming.dx *= 0.8;
   aiming.dy *= 0.8;
@@ -1013,4 +1152,5 @@ window.__wf = { scene, camera, renderer, world, player, weapon, remote, net, loo
   raycaster,
   profile, settings, menu, fase: () => phase, show,
   grass, drops, solo, equipSlot, usarSlot, toggleGrenade, useHeal, useCigarro, aimRay,
-  throwGrenade, largarNoChao, historia };
+  throwGrenade, largarNoChao, historia, toque, pausar, MOBILE,
+  estadoJogo: () => ({ running, phase, dead }) };

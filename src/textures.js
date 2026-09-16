@@ -202,6 +202,106 @@ export function tombstoneTexture(destaque = false) {
   return toTexture(c);
 }
 
+// Caixote de suprimento em 3D: uma textura para cada tipo de face, todas no
+// traco de caneta — tabuas com veio, cantoneiras de metal com rebite e o
+// simbolo de suprimento pintado a estencil.
+function tabuas(ctx, w, h, n, vertical = false) {
+  ctx.fillStyle = '#f6f3ec';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = INK;
+  const passo = (vertical ? w : h) / n;
+  for (let i = 1; i < n; i++) {
+    ctx.lineWidth = 5;
+    if (vertical) rabisco(ctx, i * passo, 0, i * passo, h, 2, 2);
+    else rabisco(ctx, 0, i * passo, w, i * passo, 2, 2);
+  }
+  // veio da madeira
+  ctx.strokeStyle = 'rgba(20,20,20,.35)';
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i < n; i++) {
+    for (let k = 0; k < 4; k++) {
+      const a = (i + 0.2 + Math.random() * 0.6) * passo;
+      const b = Math.random() * (vertical ? h : w) * 0.8;
+      const l = 30 + Math.random() * 70;
+      if (vertical) rabisco(ctx, a, b, a + (Math.random() - 0.5) * 6, b + l, 1.2, 1);
+      else rabisco(ctx, b, a, b + l, a + (Math.random() - 0.5) * 6, 1.2, 1);
+    }
+  }
+  ctx.strokeStyle = INK;
+}
+
+function cantoneiras(ctx, w, h, s = 64) {
+  ctx.fillStyle = '#3a3a3a';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 5;
+  for (const [x, y, sx, sy] of [[0, 0, 1, 1], [w, 0, -1, 1], [0, h, 1, -1], [w, h, -1, -1]]) {
+    ctx.beginPath();
+    ctx.moveTo(x, y); ctx.lineTo(x + sx * s, y); ctx.lineTo(x + sx * s * 0.35, y + sy * s * 0.35);
+    ctx.lineTo(x, y + sy * s);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = PAPER;
+    for (const [rx, ry] of [[0.22, 0.22], [0.62, 0.12], [0.12, 0.62]]) {
+      ctx.beginPath(); ctx.arc(x + sx * s * rx, y + sy * s * ry, 4.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#3a3a3a';
+  }
+  ctx.lineWidth = 12;
+  ctx.strokeRect(6, 6, w - 12, h - 12);
+}
+
+function simboloSuprimento(ctx, cx, cy, r) {
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = INK;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = INK;
+  const b = r * 0.28;
+  ctx.fillRect(cx - b / 2, cy - r * 0.62, b, r * 1.24);
+  ctx.fillRect(cx - r * 0.62, cy - b / 2, r * 1.24, b);
+}
+
+export function caixoteLootTextures() {
+  // lateral comprida: tabuas deitadas, cruz e "SUPRIMENTO"
+  const lado = makeCanvas(768, 352);
+  tabuas(lado.ctx, 768, 352, 4);
+  lado.ctx.lineWidth = 7;
+  rabisco(lado.ctx, 60, 330, 708, 22, 2, 2);                // travessa diagonal
+  lado.ctx.fillStyle = '#f6f3ec';
+  lado.ctx.fillRect(250, 96, 268, 160);
+  lado.ctx.lineWidth = 5;
+  lado.ctx.strokeRect(250, 96, 268, 160);
+  simboloSuprimento(lado.ctx, 318, 176, 50);
+  lado.ctx.fillStyle = INK;
+  lado.ctx.font = '700 40px "Betania Patmos", "Comic Sans MS", cursive';
+  lado.ctx.textAlign = 'left';
+  lado.ctx.textBaseline = 'middle';
+  lado.ctx.fillText('SUPRI', 382, 150);
+  lado.ctx.fillText('MENTO', 382, 202);
+  cantoneiras(lado.ctx, 768, 352, 72);
+
+  // cabeceira: tabuas + X de reforco
+  const ponta = makeCanvas(512, 368);
+  tabuas(ponta.ctx, 512, 368, 4);
+  ponta.ctx.lineWidth = 8;
+  rabisco(ponta.ctx, 40, 40, 472, 328, 2, 2);
+  rabisco(ponta.ctx, 472, 40, 40, 328, 2, 2);
+  simboloSuprimento(ponta.ctx, 256, 184, 44);
+  cantoneiras(ponta.ctx, 512, 368, 60);
+
+  // tampa: tabuas no comprido, duas alcas de corda e a cruz no meio
+  const tampa = makeCanvas(768, 512);
+  tabuas(tampa.ctx, 768, 512, 5, true);
+  tampa.ctx.lineWidth = 9;
+  for (const x of [150, 618]) {
+    tampa.ctx.beginPath();
+    tampa.ctx.ellipse(x, 256, 44, 22, 0, 0, Math.PI * 2);
+    tampa.ctx.stroke();
+  }
+  simboloSuprimento(tampa.ctx, 384, 256, 70);
+  cantoneiras(tampa.ctx, 768, 512, 80);
+
+  return { lado: toTexture(lado.c), ponta: toTexture(ponta.c), tampa: toTexture(tampa.c) };
+}
+
 export function bushTexture(seed = 7) {
   const { c, ctx } = makeCanvas(384, 256);
   ctx.lineWidth = 8;

@@ -3,6 +3,7 @@ import * as TEX from '../textures.js';
 import { Cinematica } from './cinematica.js';
 import { criarFase1 } from './fase1.js';
 import { definirChao } from '../grenade.js';
+import { COLETE, danoComColete } from '../mapgen.js';
 
 // Modo historia. Igual ao SoloGame, finge ser o servidor: recebe as mensagens
 // que o jogo mandaria pela rede e devolve os mesmos eventos. Por cima disso
@@ -57,6 +58,7 @@ export class Historia {
     this.mortes = 0;
     this.tempo = 0;
     this.vida = 100;
+    this.colete = 0;
     this.falaTempo = 0;
     this.rotorVel = 0;
     this.limpo = false;
@@ -206,6 +208,10 @@ export class Historia {
         this.net._emit('picked', { id: drop.id, kind: drop.kind, slot: msg.slot });
         break;
       }
+      case 'colete':
+        this.colete = COLETE.max;
+        this.net._emit('vestiu', { colete: this.colete });
+        break;
       case 'heal': {
         const antes = this.vida;
         this.vida = Math.min(100, this.vida + (msg.amount || 35));
@@ -225,8 +231,10 @@ export class Historia {
 
   _machucar(dano, quem) {
     if (this.vida <= 0 || this.emCena || this.fim) return;
-    this.vida = Math.max(0, Math.round(this.vida - dano));
-    this.net._emit('hurt', { by: quem?.id ?? 0, health: this.vida });
+    const r = danoComColete(dano, this.colete || 0);
+    this.colete = r.colete;
+    this.vida = Math.max(0, Math.round(this.vida - r.dano));
+    this.net._emit('hurt', { by: quem?.id ?? 0, health: this.vida, colete: this.colete });
     if (this.vida === 0) {
       this.mortes++;
       this.net.room = this._sala();
@@ -304,6 +312,7 @@ export class Historia {
     }
 
     this.vida = cp.vida;
+    this.colete = 0;
     this.net.room = this._sala();
     this._objetivo(cp.objetivo);
     this.net._emit('respawn', {

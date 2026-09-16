@@ -147,6 +147,23 @@ export class World {
   _setupSky(scene) {
     scene.background = new THREE.Color(0xffffff);
     scene.fog = new THREE.Fog(0xffffff, FOG_NEAR, FOG_FAR);
+
+    // cupula: branco no horizonte (casa com a neblina) e cinza-azulado no alto
+    const geo = new THREE.SphereGeometry(380, 32, 16);
+    const cores = [];
+    const pos = geo.attributes.position;
+    const baixo = new THREE.Color(0xffffff), alto = new THREE.Color(0xc6d5e3), cor = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const t = Math.max(0, pos.getY(i) / 380);
+      cor.copy(baixo).lerp(alto, Math.pow(t, 0.8));
+      cores.push(cor.r, cor.g, cor.b);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(cores, 3));
+    this.ceu = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+      vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false,
+    }));
+    this.ceu.renderOrder = -3;
+    scene.add(this.ceu);
   }
 
   _setupGround(scene) {
@@ -258,6 +275,9 @@ export class World {
     // billboards acompanham a camera; o sol segue o jogador para a sombra
     // sempre cobrir a area util do mapa
     for (const p of this.props) p.faceCamera(camera);
+
+    // o ceu acompanha o jogador, para nunca chegar perto da borda
+    this.ceu.position.set(camera.position.x, 0, camera.position.z);
 
     this.sun.target.position.set(camera.position.x, 0, camera.position.z);
     this.sun.position.set(camera.position.x + 48, 70, camera.position.z + 30);

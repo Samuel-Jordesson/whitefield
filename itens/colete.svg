@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <g fill="#ffffff" stroke="#141414" stroke-width="14" stroke-linejoin="round" stroke-linecap="round">
+    <!-- corpo do colete -->
+    <path d="M168 56 L214 52 Q256 132 298 52 L344 56 L362 150 Q420 168 424 226 L414 438 Q256 486 98 438 L88 226 Q92 168 150 150 Z"/>
+    <!-- bolsos e placas -->
+    <path d="M136 272 L236 266 L238 374 L140 382 Z"/>
+    <path d="M276 266 L376 272 L372 382 L274 374 Z"/>
+    <path d="M184 190 L228 184 L230 236 L186 240 Z"/>
+  </g>
+  <g fill="none" stroke="#141414" stroke-linecap="round">
+    <!-- abertura do meio e velcro -->
+    <path d="M256 140 L256 462" stroke-width="10"/>
+    <path d="M150 300 L230 294 M280 294 L362 300" stroke-width="7"/>
+    <!-- alcas nos ombros -->
+    <path d="M176 70 L160 150 M336 70 L352 150" stroke-width="8"/>
+    <!-- costuras rabiscadas -->
+    <path d="M110 412 Q256 452 402 412" stroke-width="5" stroke-dasharray="16 12"/>
+    <path d="M104 236 L140 232 M372 232 L408 236" stroke-width="6"/>
+    <!-- sombreado lateral -->
+    <path d="M384 260 L400 244 M382 300 L402 280 M380 340 L400 320 M378 380 L398 360" stroke-width="4" opacity=".55"/>
+  </g>
+</svg>

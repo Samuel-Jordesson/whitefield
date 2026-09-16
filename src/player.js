@@ -53,13 +53,22 @@ export class Player {
     const k = this.keys;
 
     // --- entrada ---
-    const fwd = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0);
-    const str = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
+    let fwd = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0);
+    let str = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
+
+    // joystick do celular: analogico (empurrar pouco = andar devagar)
+    const t = this.toque;
+    let intensidade = 1;
+    if (t && (t.x || t.y)) {
+      fwd = t.y;
+      str = t.x;
+      intensidade = Math.min(1, Math.hypot(t.x, t.y));
+    }
 
     this.crouching = !!(k.ControlLeft || k.ControlRight);   // C agora e do cigarro
-    const sprinting = !!(k.ShiftLeft || k.ShiftRight) && fwd > 0 && !this.crouching;
+    const sprinting = (!!(k.ShiftLeft || k.ShiftRight) || !!t?.correr) && fwd > 0 && !this.crouching;
 
-    let maxSpeed = (this.crouching ? 2.4 : sprinting ? 9.2 : 5.4) * this.speedBoost;
+    let maxSpeed = (this.crouching ? 2.4 : sprinting ? 9.2 : 5.4) * this.speedBoost * intensidade;
     if (!this.grounded) maxSpeed *= 1.05;
 
     // direcao no plano XZ a partir do yaw

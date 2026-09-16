@@ -7,7 +7,11 @@ import { LOADOUT_INICIAL } from './mapgen.js';
 const _dir = new THREE.Vector3();
 const _to = new THREE.Vector3();
 
-const BOX_HEIGHT = 0.9;      // altura da caixa em metros
+// caixote 3D: corpo retangular + tampa com dobradica atras
+const CAIXA = { w: 1.15, h: 0.52, d: 0.72, tampa: 0.1 };
+const TAMPA_ABERTA = -1.95;  // radianos: caixa vazia fica com a tampa aberta
+const TRACO = new THREE.LineBasicMaterial({ color: 0x141414 });
+const semRaio = () => {};
 const TOMB_HEIGHT = 1.15;    // altura da lapide
 const REACH = 4.0;           // distancia para conseguir abrir
 export const SLOTS = 9;      // espacos da mochila
@@ -25,7 +29,10 @@ export const ITEMS = {
     correr: 10,     // segundos correndo mais rapido
     visao: 5,       // segundos enxergando os inimigos pelo mapa
   },
+  colete: { name: 'Colete', img: 'itens/colete.svg' },
 };
+
+const TECLA = { granada: 'G', vida: 'Q', cigarro: 'C', colete: 'V' };
 
 // tudo que pode ser carregado: itens da mochila + as armas
 export const TUDO = { ...ITEMS, ...WEAPON_ITEMS };
@@ -34,15 +41,9 @@ export const EH_ARMA = (kind) => kind in WEAPON_ITEMS;
 export async function loadLootTextures() {
   // a lapide escreve RIP com a fonte do jogo: espera ela carregar antes de desenhar
   try { await document.fonts.load('700 104px "Betania Patmos"'); } catch { /* usa a reserva */ }
-  const [fechada, aberta] = await Promise.all([
-    TEX.loadTrimmedTexture('caixa/caixa.png'),
-    TEX.loadTrimmedTexture('caixa/caixa-e.png'),
-  ]);
-  const scale = BOX_HEIGHT / fechada.height;
   const tombW = TOMB_HEIGHT * (384 / 512);
   return {
-    idle: { texture: fechada.texture, w: fechada.width * scale, h: fechada.height * scale },
-    focus: { texture: aberta.texture, w: aberta.width * scale, h: aberta.height * scale },
+    caixote: TEX.caixoteLootTextures(),
     tombIdle: { texture: TEX.tombstoneTexture(false), w: tombW, h: TOMB_HEIGHT },
     tombFocus: { texture: TEX.tombstoneTexture(true), w: tombW, h: TOMB_HEIGHT },
   };
@@ -52,8 +53,9 @@ export async function loadLootTextures() {
 // a tela de saque. Caixa e lapide funcionam igual: um monte de itens no chao
 // que qualquer um pode abrir com E.
 export class LootManager {
-  constructor(scene, textures, { onTake, onLockChange, onDrop, onWeaponsChange }) {
+  constructor(scene, textures, { onTake, onLockChange, onDrop, onWeaponsChange, world }) {
     this.scene = scene;
+    this.world = world;                       // o caixote 3D tambem barra quem anda
     this.tex = textures;
     this.onTake = onTake;                     // avisa o servidor que pegou um item
     this.onLockChange = onLockChange;         // trava/destrava o mouse ao abrir a tela
@@ -110,7 +112,8 @@ export class LootManager {
   }
 
   _criar(info, tumba) {
-    const pose = tumba ? this.tex.tombIdle : this.tex.idle;
+    if (!tumba) { this._criarCaixote(info); return; }
+    const pose = this.tex.tombIdle;
     const mesh = new Billboard(pose.texture, pose.w, pose.h, { doubleSide: true });
     mesh.material.emissive = new THREE.Color(0x707070);
     mesh.position.set(info.x, info.y || 0, info.z);
@@ -124,11 +127,86 @@ export class LootManager {
     this.boxes.set(info.id, { ...info, items: [...info.items], tumba, mesh, shadow, focus: false });
   }
 
+  // Caixote retangular em 3D: corpo com as texturas desenhadas, tampa numa
+  // dobradica (abre sozinha quando a caixa fica vazia), contorno a traco e
+  // uma casca preta por tras que engrossa quando a caixa esta na mira.
+  _criarCaixote(info) {
+    const t = this.tex.caixote;
+    const { w, h, d, tampa: esp } = CAIXA;
+    const y = info.y || 0;
+
+    const grupo = new THREE.Group();
+    grupo.position.set(info.x, y, info.z);
+    // cada caixa virada para um lado, sempre igual para todo mundo
+    const giro = typeof info.id === 'number' ? (Math.sin(info.id * 127.1 + 311.7) * 43758.5453) % 1 : 0.3;
+    grupo.rotation.y = Math.abs(giro) * Math.PI;
+
+    const madeira = (map) => new THREE.MeshLambertMaterial({ map, emissive: new THREE.Color(0x4a4a4a) });
+    const mats = {
+      lado: madeira(t.lado), ponta: madeira(t.ponta), tampa: madeira(t.tampa),
+      liso: new THREE.MeshLambertMaterial({ color: 0xefece4, emissive: new THREE.Color(0x4a4a4a) }),
+      dentro: new THREE.MeshLambertMaterial({ color: 0x2a2a2a }),
+    };
+    const casca = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.BackSide });
+
+    // faces do BoxGeometry: +x, -x, +y, -y, +z, -z
+    const corpo = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+      [mats.ponta, mats.ponta, mats.dentro, mats.dentro, mats.lado, mats.lado]);
+    corpo.position.y = h / 2;
+
+    const dobra = new THREE.Group();
+    dobra.position.set(0, h, -d / 2);
+    const tampa = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, esp, d + 0.04),
+      [mats.liso, mats.liso, mats.tampa, mats.ponta, mats.liso, mats.liso]);   // por baixo tambem e tabua
+    tampa.position.set(0, esp / 2, d / 2);
+    dobra.add(tampa);
+    dobra.rotation.x = info.items.length ? 0 : TAMPA_ABERTA;
+    grupo.add(corpo, dobra);
+
+    const cascas = [];
+    for (const m of [corpo, tampa]) {
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.userData.box = info.id;
+      const linhas = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), TRACO);
+      linhas.raycast = semRaio;
+      m.add(linhas);
+      const c = new THREE.Mesh(m.geometry, casca);
+      c.scale.setScalar(1.035);
+      c.raycast = semRaio;
+      m.add(c);
+      cascas.push(c);
+    }
+    this.scene.add(grupo);
+
+    const shadow = makeBlobShadow(this.shadowTex, w * 1.5);
+    shadow.position.set(info.x, y + 0.03, info.z);
+    this.scene.add(shadow);
+
+    // barreira do tamanho do caixote, girada junto
+    const colisor = { x: info.x, z: info.z, hw: w / 2, hd: d / 2, rot: grupo.rotation.y, y0: y, y1: y + h + esp };
+    this.world?.boxColliders.push(colisor);
+
+    this.boxes.set(info.id, {
+      ...info, items: [...info.items], tumba: false, mesh: grupo, shadow, focus: false,
+      tres: { mats, casca, cascas, dobra, colisor },
+    });
+  }
+
   _destruir(b) {
     this.scene.remove(b.mesh, b.shadow);
-    b.mesh.material.dispose();
     b.shadow.geometry.dispose();
     b.shadow.material.dispose();
+    if (b.tres) {
+      const lista = this.world?.boxColliders;
+      const i = lista ? lista.indexOf(b.tres.colisor) : -1;
+      if (i >= 0) lista.splice(i, 1);
+      b.mesh.traverse((o) => { if (o.geometry && o !== b.shadow) o.geometry.dispose(); });
+      for (const m of Object.values(b.tres.mats)) m.dispose();
+      b.tres.casca.dispose();
+      return;
+    }
+    b.mesh.material.dispose();
   }
 
   clear() {
@@ -140,11 +218,17 @@ export class LootManager {
 
   get meshes() { return [...this.boxes.values()].map((b) => b.mesh); }
 
-  // Troca caixa.png por caixa-e.png quando a caixa esta perto e sob a mira.
+  // Destaca a caixa (ou lapide) que esta perto e sob a mira.
   // Vale o raio do centro da tela e tambem um cone curto — a caixa e baixa,
   // e seria chato ter que encaixar a mirinha exatamente nela.
   update(dt, camera, hit, active = true) {
-    for (const b of this.boxes.values()) b.mesh.faceCamera(camera);
+    for (const b of this.boxes.values()) {
+      if (b.tumba) { b.mesh.faceCamera(camera); continue; }
+      // tampa abre quando levaram tudo (e fecha se voltar item, no checkpoint)
+      const alvo = b.items.length ? 0 : TAMPA_ABERTA;
+      const dobra = b.tres.dobra;
+      dobra.rotation.x += (alvo - dobra.rotation.x) * Math.min(1, dt * 5);
+    }
 
     let target = null;
     if (active) {
@@ -189,9 +273,14 @@ export class LootManager {
   }
 
   _setFocus(box, on) {
-    const pose = box.tumba
-      ? (on ? this.tex.tombFocus : this.tex.tombIdle)
-      : (on ? this.tex.focus : this.tex.idle);
+    box.focus = on;
+    if (!box.tumba) {
+      // na mira: a madeira clareia e o contorno de fora engrossa
+      for (const m of Object.values(box.tres.mats)) if (m.emissive) m.emissive.setHex(on ? 0x8c8c8c : 0x4a4a4a);
+      for (const c of box.tres.cascas) c.scale.setScalar(on ? 1.07 : 1.035);
+      return;
+    }
+    const pose = on ? this.tex.tombFocus : this.tex.tombIdle;
     box.mesh.material.map = pose.texture;
     box.mesh.setSize(pose.w, pose.h);
     box.focus = on;
@@ -218,10 +307,10 @@ export class LootManager {
     return true;
   }
 
-  // nasce so com a pistola e a faca (vazio = morto, esperando renascer)
+  // nasce com o que o operador tem no EQUIPAR (vazio = morto, esperando renascer)
   resetBag(vazio = false) {
     this.slots.fill(null);
-    this.weapons = vazio ? [null, null, null] : [...LOADOUT_INICIAL];
+    this.weapons = vazio ? [null, null, null] : [...(this.cargaInicial?.() || LOADOUT_INICIAL)];
     this._refresh();
     this.onWeaponsChange?.();
   }
@@ -299,7 +388,7 @@ export class LootManager {
     this.el.bagHud.innerHTML = Object.entries(ITEMS).map(([kind, info]) => {
       const n = this.count(kind);
       if (!n) return '';
-      const tecla = kind === 'granada' ? 'G' : kind === 'vida' ? 'Q' : 'C';
+      const tecla = TECLA[kind] || '';
       return `<div class="bag-item ${info.raro ? 'raro' : ''}">
         <img src="${info.img}" alt="${info.name}"><span>${n}</span>
         <b>${tecla}</b>
@@ -399,6 +488,7 @@ export class LootManager {
         from: slot.dataset.from,
         index: Number(slot.dataset.index),
         kind: slot.dataset.kind,
+        x0: e.clientX, y0: e.clientY, andou: 0,
       };
       ghost.innerHTML = `<img src="${TUDO[this.drag.kind].img}" alt="">`;
       ghost.classList.remove('hidden');
@@ -408,6 +498,7 @@ export class LootManager {
 
     const move = (e) => {
       if (!this.drag) return;
+      this.drag.andou = Math.max(this.drag.andou, Math.hypot(e.clientX - this.drag.x0, e.clientY - this.drag.y0));
       ghost.style.transform = `translate(${e.clientX - 34}px, ${e.clientY - 34}px)`;
       const over = this._areaSob(e);
       this.el.bagGrid.classList.toggle('drop', over === this.el.bagGrid && this._podeIr('bag'));
@@ -424,6 +515,12 @@ export class LootManager {
       this.el.gunGrid.classList.remove('drop');
       this.el.trash.classList.remove('drop');
       for (const s of document.querySelectorAll('.slot.dragging')) s.classList.remove('dragging');
+
+      // no celular, tocar num item da caixa (sem arrastar) ja pega
+      if (d.from === 'box' && d.andou < 10 && document.body.classList.contains('toque')) {
+        EH_ARMA(d.kind) ? this.takeWeapon(d.index, this.campoPara(d.kind, 0)) : this.take(d.index);
+        return;
+      }
 
       const over = this._areaSob(e);
       const alvoSlot = document.elementFromPoint(e.clientX, e.clientY)?.closest('.slot');
@@ -452,7 +549,8 @@ export class LootManager {
       }
     };
 
-    this.el.panel.addEventListener('mousedown', start);
+    // pointer events: vale para mouse e para o dedo
+    this.el.panel.addEventListener('pointerdown', start);
     this._areaSob = (e) =>
       document.elementFromPoint(e.clientX, e.clientY)?.closest('#bagGrid, #boxGrid, #gunGrid, #trash');
     this._podeIr = (destino) => {
@@ -460,8 +558,9 @@ export class LootManager {
       const arma = EH_ARMA(this.drag.kind);
       return destino === 'gun' ? arma : !arma;
     };
-    addEventListener('mousemove', move);
-    addEventListener('mouseup', end);
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', end);
+    addEventListener('pointercancel', end);
 
     // clique duplo tambem pega, para quem nao quiser arrastar
     this.el.panel.addEventListener('dblclick', (e) => {

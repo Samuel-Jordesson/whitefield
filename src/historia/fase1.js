@@ -147,9 +147,9 @@ export function criarFase1() {
 
     caixas: [
       { id: 0, x: 23.8, y: 0, z: 8.8, items: ['vida', 'granada'], cp: 0 },
-      { id: 1, x: 32.6, y: H, z: 5.4, items: ['vida', 'granada', 'cigarro'], cp: 1 },
+      { id: 1, x: 32.6, y: H, z: 5.4, items: ['colete', 'vida', 'granada', 'cigarro'], cp: 1 },
       { id: 2, x: 20.8, y: H, z: -8.8, items: ['rifle', 'vida'], cp: 1 },
-      { id: 3, x: -2.9, y: 2 * H, z: 3.4, items: ['vida', 'granada'], cp: 2 },
+      { id: 3, x: -2.9, y: 2 * H, z: 3.4, items: ['colete', 'vida', 'granada'], cp: 2 },
       { id: 4, x: -3.1, y: T_, z: 3.5, items: ['vida'], cp: 3 },
     ],
 

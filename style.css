@@ -102,7 +102,7 @@ html, body {
 #killfeed b { -webkit-text-stroke: 0.4px currentColor; }
 
 #scoreboard {
-  position: absolute; left: 50%; top: 70px; transform: translateX(-50%);
+  position: absolute; left: 50%; top: 92px; transform: translateX(-50%);
   min-width: 320px;
   background: rgba(255,255,255,.94);
   border: 1px solid #ddd;
@@ -195,7 +195,7 @@ html, body {
 
 /* barras de placar dos times */
 #teamBars {
-  position: absolute; left: 50%; top: 18px; transform: translateX(-50%);
+  position: absolute; left: 50%; top: 54px; transform: translateX(-50%);
   display: flex; gap: 26px; align-items: center;
 }
 .tb { display: flex; align-items: center; gap: 10px; }
@@ -795,3 +795,230 @@ body.cinema #hud, body.cinema #weaponWrap, body.cinema #scopeWrap, body.cinema #
 .fase-tag { font-size: 13px; color: #888; letter-spacing: .12em; text-align: right; }
 .fase-card.bloqueado { border-style: dashed; border-color: #bbb; color: #aaa; cursor: default; }
 .fase-card.bloqueado .fase-desc { color: #bbb; }
+
+/* ---------------- cor da mira ---------------- */
+:root { --mira: #ff2a2a; }
+/* linha de 2px como antes; so uma sombra suave (sem contorno) para nao sumir no branco */
+#crosshair .ch { background: var(--mira); box-shadow: 0 0 1.5px rgba(0, 0, 0, .45); }
+#miraPonto {
+  position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%; background: var(--mira); box-shadow: 0 0 1.5px rgba(0, 0, 0, .5);
+  opacity: 0; transition: opacity .1s;
+}
+/* mirando a cruz encolhe; o ponto cresce na mesma proporcao e fica bem visivel */
+#crosshair.aiming #miraPonto { opacity: 1; transform: scale(2.1); }
+#crosshair.luneta #miraPonto { opacity: 0; }
+#lente .ret-ponto { background: var(--mira) !important; }
+
+/* ---------------- configuracoes: barra e amostra de cor ---------------- */
+.cfg-barra { display: flex; align-items: center; gap: 14px; }
+.cfg-barra input[type=range] { width: min(320px, 46vw); accent-color: #111; cursor: pointer; height: 22px; }
+.cfg-barra output { min-width: 58px; text-align: right; font-size: 20px; -webkit-text-stroke: .4px currentColor; }
+.opt.com-cor::before {
+  content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 7px; vertical-align: -1px;
+  border-radius: 50%; background: var(--amostra); box-shadow: 0 0 0 1.5px #111;
+}
+
+/* ---------------- operador: armas iniciais ---------------- */
+.op-bloco { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.op-carga { display: flex; gap: 6px; }
+.op-carga .mini {
+  width: 54px; height: 38px; display: grid; place-items: center;
+  border: 2px solid #111; background: rgba(255,255,255,.9); color: #aaa; font-size: 14px;
+}
+.op-carga .mini.vazio { border-style: dashed; border-color: #bbb; }
+.op-carga .mini img { max-width: 88%; max-height: 80%; }
+.op-carga.grande .mini { width: 84px; height: 56px; }
+#menuPainel .row .opt, .eq-botao { padding: 7px 18px; }
+
+.equipar { display: flex; gap: 24px; align-items: stretch; margin-bottom: 22px; flex-wrap: wrap; }
+.eq-op {
+  width: 150px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px;
+  border: 2px solid #111; background: rgba(255,255,255,.85); padding: 10px;
+}
+.eq-op img { max-height: 150px; max-width: 100%; object-fit: contain; }
+.eq-slots { display: flex; gap: 12px; flex-wrap: wrap; align-items: stretch; }
+.eq-slot {
+  width: 170px; min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  border: 2px dashed #999; background: rgba(255,255,255,.8); color: #111; padding: 10px;
+}
+.eq-slot:hover { background: #fff; color: #111; border-color: #111; }
+.eq-slot.ativo { border: 3px solid #111; box-shadow: 0 0 0 3px #111 inset; background: #fff; }
+.eq-slot img { max-width: 120px; max-height: 70px; object-fit: contain; }
+.eq-rotulo { font-size: 13px; letter-spacing: .2em; color: #777; }
+.eq-nome { font-size: 17px; }
+.eq-vazio { color: #aaa; font-size: 16px; }
+.eq-arma { min-height: 170px; }
+.eq-arma .card-tipo { letter-spacing: 0; line-height: 1.3; }
+
+/* ---------------- bussola (simples) ---------------- */
+#bussola {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
+  width: min(360px, 60vw);
+}
+.bus-janela {
+  position: relative; height: 34px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20%, #000 80%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 20%, #000 80%, transparent 100%);
+}
+/* tracinho do centro */
+.bus-janela::after {
+  content: ''; position: absolute; left: 50%; bottom: 0; width: 2px; height: 5px; margin-left: -1px; background: #111;
+}
+#busTrilho { position: absolute; left: 0; top: 0; height: 100%; will-change: transform; }
+#busTrilho b {
+  position: absolute; top: 8px; transform: translateX(-50%); line-height: 18px;
+  font-size: 13px; font-weight: 400; color: #555; letter-spacing: .04em;
+}
+#busTrilho b.cardeal { font-size: 16px; color: #111; }
+#busAmigos { position: absolute; inset: 0; }
+.bus-amigo {
+  position: absolute; top: 0; width: 6px; height: 6px; margin-left: -3px;
+  border-radius: 50%; background: #2f7bff;
+}
+.bus-amigo.fora { opacity: .5; }
+body.na-luneta #busTrilho b { color: #ddd; }
+body.na-luneta .bus-janela::after { background: #eee; }
+
+/* aviso para voltar a prender o mouse */
+#voltarJogo {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 9;
+  padding: 16px 30px; background: rgba(255,255,255,.95); border: 2px solid #111;
+  font-size: 20px; letter-spacing: .08em; cursor: pointer; pointer-events: auto;
+}
+#voltarJogo b { -webkit-text-stroke: .6px currentColor; }
+
+.bus-amigo.fora-dir { flex-direction: row-reverse; transform: translateX(calc(-100% + 7px)); }
+
+/* ================= celular ================= */
+
+/* botao FECHAR da tela de saque (serve no PC tambem) */
+.loot-fechar {
+  position: absolute; top: 16px; right: 20px; padding: 10px 18px; font-size: 16px;
+  border: 2px solid #111; background: #fff;
+}
+.so-toque { display: none; }
+body.toque .so-toque { display: block; }
+body.toque .loot-hint:not(.so-toque) { display: none; }
+
+/* botao de tela cheia, desenhado */
+#telaCheia {
+  position: fixed; top: 8px; left: 50%; transform: translateX(-50%) rotate(-1deg); z-index: 40;
+  padding: 7px 16px; font-size: 15px; letter-spacing: .1em;
+  background: #fff; color: #111; border: 3px solid #141414;
+  border-radius: 14px 18px 12px 16px / 16px 12px 18px 14px;
+  box-shadow: 2px 3px 0 rgba(20,20,20,.55);
+  touch-action: manipulation;
+}
+#telaCheia:active { background: #141414; color: #fff; }
+
+/* camada dos controles */
+#toque { display: none; }
+body.toque.em-partida #toque {
+  display: block; position: fixed; inset: 0; z-index: 6; pointer-events: none;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+body.toque #game { touch-action: none; }
+body.toque { overscroll-behavior: none; }
+
+.tq-zona { position: absolute; top: 0; bottom: 0; pointer-events: auto; touch-action: none; }
+.tq-andar { left: 0; width: 42%; }
+.tq-olhar { right: 0; width: 58%; }
+
+/* joystick: fica fraquinho no canto ate encostar o dedo, ai aparece embaixo dele */
+.tq-stick {
+  position: absolute; left: 120px; top: calc(100% - 120px);
+  width: 124px; height: 124px; margin: -62px 0 0 -62px; pointer-events: none;
+  border: 3px dashed rgba(20,20,20,.5); border-radius: 50% 47% 52% 49%;
+  background: rgba(255,255,255,.22); opacity: .45; transition: opacity .15s;
+}
+.tq-stick.ativo { opacity: 1; }
+.tq-stick i {
+  position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px;
+  border-radius: 50%; background: rgba(255,255,255,.9); border: 3px solid #141414;
+  box-shadow: 2px 3px 0 rgba(20,20,20,.5);
+}
+
+/* botao redondo "desenhado": borda torta, sombra de caneta e um segundo risco em volta */
+.tq-bt {
+  position: absolute; pointer-events: auto; touch-action: none;
+  width: 58px; height: 58px; padding: 0; display: grid; place-items: center;
+  background: rgba(255,255,255,.84); color: #141414;
+  border: 3px solid #141414; border-radius: 52% 48% 50% 46% / 48% 52% 46% 54%;
+  box-shadow: 2px 3px 0 rgba(20,20,20,.55);
+  transition: transform .08s, background .08s;
+}
+.tq-bt::after {
+  content: ''; position: absolute; inset: -6px; pointer-events: none;
+  border: 1.5px solid rgba(20,20,20,.45); border-radius: 46% 54% 48% 52% / 54% 46% 52% 48%;
+  transform: rotate(-9deg);
+}
+.tq-bt:hover { background: rgba(255,255,255,.84); color: #141414; }
+.tq-bt svg { width: 60%; height: 60%; fill: none; stroke: #141414; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
+.tq-bt svg .cheio { fill: #141414; }
+.tq-bt svg .letra { fill: #141414; stroke: none; font: 700 34px 'Betania Patmos', 'Comic Sans MS', cursive; }
+.tq-bt.apertado { transform: scale(.9); }
+.tq-bt.on { background: #141414; }
+.tq-bt.on svg { stroke: #fff; }
+.tq-bt.on svg .cheio, .tq-bt.on svg .letra { fill: #fff; }
+.tq-bt.vazio { opacity: .35; }
+.tq-bt .qtd {
+  position: absolute; right: -6px; top: -6px; min-width: 21px; height: 21px; padding: 0 5px;
+  display: grid; place-items: center; border-radius: 11px;
+  background: #141414; color: #fff; font-size: 12px; font-weight: 700; line-height: 1;
+}
+.tq-bt .qtd:empty { display: none; }
+
+/* lado direito: tiro grande e o resto em volta, ao alcance do polegar */
+.tq-atirar { right: 28px; bottom: 34px; width: 96px; height: 96px; }
+.tq-mirar { right: 142px; bottom: 26px; width: 66px; height: 66px; }
+.tq-pular { right: 36px; bottom: 150px; width: 62px; height: 62px; }
+.tq-agachar { right: 148px; bottom: 112px; width: 54px; height: 54px; }
+.tq-recarregar { right: 228px; bottom: 38px; width: 54px; height: 54px; }
+.tq-arma { right: 222px; bottom: 112px; width: 54px; height: 54px; }
+
+/* fileira de itens em cima do polegar */
+.tq-itens {
+  position: absolute; right: 22px; bottom: 232px; display: flex; flex-direction: row-reverse; gap: 12px;
+  pointer-events: none;
+}
+.tq-itens .tq-bt { position: relative; }
+.tq-p { width: 48px; height: 48px; }
+.tq-usar { width: 58px; height: 58px; }
+.tq-usar.pronto { background: #141414; animation: tqPisca 1s infinite; }
+.tq-usar.pronto svg .letra { fill: #fff; }
+@keyframes tqPisca { 50% { transform: scale(1.08); } }
+
+.tq-pausa { left: 14px; top: 14px; width: 46px; height: 46px; }
+.tq-texto {
+  position: absolute; right: 18px; top: 16px; pointer-events: auto; display: none;
+  padding: 8px 16px; font-size: 16px; background: #fff; border: 3px solid #141414;
+  border-radius: 14px 18px 12px 16px / 16px 12px 18px 14px; box-shadow: 2px 3px 0 rgba(20,20,20,.55);
+}
+
+/* cinematica: so o botao de pular; pausado/morto/mochila aberta: sem controles de jogo */
+#toque.cena > *:not(.tq-pular-cena) { display: none; }
+#toque.cena .tq-pular-cena { display: block; }
+#toque.parado:not(.cena) > *:not(.tq-pausa) { visibility: hidden; }
+
+/* HUD reorganizado para nao ficar embaixo dos dedos */
+body.toque #bagHud { display: none; }
+body.toque #stats { left: 72px; top: 12px; bottom: auto; transform: scale(.72); transform-origin: top left; gap: 18px; }
+body.toque #ammoBox { right: auto; left: 50%; bottom: 8px; transform: translateX(-50%); text-align: center; }
+body.toque #ammo { font-size: 32px; }
+body.toque #weaponName { display: none; }
+body.toque #gunHud { right: auto; left: 50%; bottom: 56px; transform: translateX(-50%) scale(.72); transform-origin: bottom center; }
+body.toque #objetivo { left: 72px; top: 70px; }
+body.toque #killfeed { top: 70px; font-size: 13px; }
+body.toque #teamBars { transform: translateX(-50%) scale(.75); transform-origin: top center; top: 46px; }
+body.toque #lootPrompt, body.toque #dropPrompt, body.toque #historiaPrompt { top: 38%; }
+body.toque #weaponWrap { width: 34vw; min-width: 260px; }
+body.toque #lootPanel { overflow-y: auto; align-content: start; padding-top: 60px; }
+body.toque .loot-inner { transform: scale(.66); transform-origin: top center; margin-bottom: -30%; }
+body.toque .slot { touch-action: none; }
+body.toque #voltarJogo { display: none !important; }
+
+/* ajustes do celular: tela cheia fora do caminho do perfil/bussola, FECHAR do outro lado */
+#telaCheia { left: auto; right: 118px; transform: rotate(-1deg); padding: 6px 12px; font-size: 13px; }
+body.toque .tb-name { white-space: nowrap; }
+body.toque .loot-fechar { right: auto; left: 16px; }

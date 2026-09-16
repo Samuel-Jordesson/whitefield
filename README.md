@@ -71,7 +71,12 @@ As mesmas configuracoes aparecem no menu inicial e no **ESC durante a partida**
 | Sombras | desligadas ou shadow map de 1024 / 2048 / 4096 |
 | Distancia de visao | onde a neblina fecha o cenario (120, 190 ou 300 m) |
 | Campo de visao | FOV de 70 a 95 |
-| Sensibilidade do mouse | quatro niveis |
+| Sensibilidade do mouse | **barra deslizante** de 0.5 a 15 (padrao 5), aplica enquanto arrasta |
+| Sensibilidade mirando | **barra** de 10% a 150%: o quanto o mouse anda com o botao direito (100% = igual sem mirar; a sniper continua proporcionalmente mais lenta) |
+| Cor da mira | vermelho, verde, ciano, amarelo, rosa, branco ou preto — vale para a cruz, para o **ponto no centro que aparece mirando** e para o ponto da luneta |
+
+A tela ganhou um **ceu**: cupula clara indo do branco no horizonte (casa com a
+neblina) ao azul-acinzentado no alto, sem nuvens.
 
 ## Modo historia
 
@@ -174,11 +179,12 @@ para nao dar confusao na hora do tiro.
 | Botao esquerdo | atirar (rifle e automatico, pistola e tiro a tiro) |
 | **Botao direito** | **mirar** — a arma sai da tela e entra a mira correspondente, com zoom e mouse mais lento |
 | **1 a 3 ou roda do mouse** | arma 1 · arma 2 · faca (campo vazio = maos) |
-| **E** | abrir a caixa na sua frente / saquear uma lapide RIP / pegar o item do chao |
+| **E** | abrir a caixa na sua frente / saquear uma lapide RIP / pegar o item do chao — com a tela de saque aberta, **E ou ESC fecham** |
 | **I** | abrir a mochila (9 espacos + 2 armas + faca) |
 | **G** | pegar/guardar a granada (aparece na mao) |
 | **Q** | usar um curativo (+35 de vida) |
 | **C** | acender o cigarro (velocidade + visao pelos inimigos) |
+| **V** | vestir um colete da mochila |
 | Shift | correr |
 | Espaco | pular |
 | Ctrl | agachar |
@@ -186,19 +192,65 @@ para nao dar confusao na hora do tiro.
 | Tab | placar |
 | ESC | pausa — menu no meio da tela com **continuar**, **configuracoes** e **sair do jogo** |
 
+## Celular
+
+Abrindo o jogo no celular (ou no PC com `?mobile=1` no endereco, para testar) aparecem
+**controles de toque desenhados no traco do jogo** — botoes redondos com borda torta,
+sombra de caneta e icones rabiscados:
+
+| Onde | O que faz |
+|---|---|
+| Metade esquerda | **joystick**: encoste o dedo em qualquer lugar e arraste (pouco = anda devagar; ate a borda para frente = corre) |
+| Metade direita | **arraste para olhar** |
+| Botao grande de tiro | segura para atirar; arrastando o mesmo dedo voce mira enquanto atira |
+| Mirar | liga/desliga a mira (zoom) |
+| Pular / Agachar | pular segurando; agachar liga/desliga |
+| Recarregar / Trocar arma | recarrega; passa para a proxima arma (1 → 2 → faca) |
+| Fileira de cima | **E** (usar — pisca quando ha caixa, item ou helicoptero perto), mochila, granada, curativo, colete e cigarro com a quantidade |
+| Canto de cima a esquerda | pausa |
+
+- **TELA CHEIA**: botao no alto da **pagina inicial** (no PC e no celular) e, no
+  celular, tambem durante a partida; tocando, o jogo vai para tela cheia como um F11 e
+  tenta deitar a tela. Em tela cheia o botao some; saindo dela, volta. No iPhone o
+  Safari nao deixa pagina entrar em tela cheia: o botao explica o caminho que funciona
+  (Compartilhar › **Adicionar a Tela de Inicio**) — aberto por esse atalho o jogo ja
+  abre sem a barra do navegador, e o botao nem aparece.
+- Na tela de saque, **tocar num item da caixa ja pega** e da para arrastar com o dedo;
+  tem o botao **FECHAR** (que tambem aparece no PC).
+- Na cinematica do modo historia aparece so o botao **PULAR**.
+- O HUD se reorganiza para nao ficar embaixo dos dedos (vida em cima, municao e
+  armas no meio de baixo). Controles em `src/toque.js`.
+
+## Bussola
+
+No alto da tela fica uma **bussola simples**: so as letras **N, NE, L, SE, S, SO,
+O, NO** correndo conforme voce gira, um tracinho marcando o centro e um **pontinho
+azul para cada aliado vivo** na direcao em que ele esta (se estiver atras de voce,
+fica clarinho preso na beirada). Norte e o lado de onde o time B nasce. Codigo em
+`src/bussola.js`.
+
+Fechar a tela de saque com **ESC**: o navegador nao deixa prender o mouse de novo
+por essa tecla, entao aparece **CLIQUE para voltar ao jogo** — um clique e voce
+esta de volta (com **E** o mouse ja volta preso direto).
+
 ## Armas
 
 Sao **tres campos de arma** (teclas 1 a 3, ou a roda do mouse passando por eles):
 **ARMA 1** e **ARMA 2** para armas de fogo e o campo **FACA**, so para ela.
 
-**Todo mundo nasce (e renasce) so com a pistola e a faca.** Rifle, escopeta e
-sniper estao **dentro das caixas** — 55% das caixas das cabanas e 30% das do
-campo trazem uma arma, dando em media uns 3-4 rifles, 3 escopetas e 1 sniper por
-mapa. Ou pegue as de quem morreu, na lapide (veja abaixo).
+**Voce escolhe com o que nasce.** Em **OPERADOR** (ou em JOGAR SOLO, em "armas
+iniciais") cada operador tem o botao **EQUIPAR**: clique no campo (ARMA 1, ARMA 2
+ou FACA) e depois na arma. Qualquer arma de fogo serve nos dois campos; escolher
+no campo 2 a arma que ja esta no 1 troca as duas de lugar; "nenhuma" deixa o campo
+vazio. Fica salvo por operador e vale ao nascer e a cada renascer, online e no solo
+(o modo historia continua comecando so com a faca). Quem nunca mexeu nasce com
+pistola e faca.
+
+As **caixas do mapa nao tem mais arma** — so curativo, granada, cigarro e colete.
+Arma de outro jogador so se consegue na lapide dele (veja abaixo).
 
 | | Rifle | Pistola | Faca | Escopeta | Sniper |
 |---|---|---|---|---|---|
-| Onde | caixa | nasce com ela | nasce com ela | caixa | caixa (rara) |
 | Municao | 12 | 8 | — | 5 | 5 |
 | Dano | 25 | 34 | **60** | 13 por bolinha (8 bolinhas) | **100** |
 | Disparo | automatico | tiro a tiro | golpe de perto (2,4 m) | leque, dano cai de 8 a 30 m | um tiro por vez, lento |
@@ -272,13 +324,18 @@ Se o jogo pesar na sua maquina, baixe `COUNT` no topo de `src/grass.js`
 
 ## Mochila, armas e itens no chao
 
-A mochila tem **9 espacos** para granada, curativo e cigarro, mais **3 campos de
+A mochila tem **9 espacos** para granada, curativo, cigarro e colete, mais **3 campos de
 arma**: ARMA 1 e ARMA 2 (qualquer arma de fogo) e FACA (tracejado, so a faca).
 
 - **I** abre a mochila a qualquer hora; **E** abre a caixa que estiver na frente.
-- Espalhadas pelo mapa (e dentro das cabanas), as caixas aparecem como
-  `caixa/caixa.png`. Quando voce chega perto e olha para uma, o sprite troca para
-  `caixa/caixa-e.png` e o aviso **E abrir caixa** aparece.
+- Espalhadas pelo mapa (e dentro das cabanas), as caixas sao **caixotes 3D
+  retangulares** (1,15 x 0,62 x 0,72 m) com textura desenhada no traco do jogo:
+  tabuas com veio, cantoneiras de metal com rebite, travessa, o simbolo de
+  suprimento e "SUPRIMENTO" pintado na lateral, alcas de corda na tampa e contorno
+  preto. Cada uma nasce virada para um lado (igual para todo mundo) e **barra quem
+  anda**. Olhando para uma de perto, a madeira clareia, o contorno engrossa e
+  aparece **E abrir caixa**; quando levam tudo, **a tampa abre sozinha** e mostra
+  a caixa vazia. Texturas em `caixoteLootTextures` (`src/textures.js`).
 - **Arraste** para mover: da caixa para a mochila, da caixa para um campo de arma,
   ou de um campo de arma para o outro (troca as duas de lugar). Duplo clique
   tambem pega, para quem preferir.
@@ -314,6 +371,11 @@ arma**: ARMA 1 e ARMA 2 (qualquer arma de fogo) e FACA (tracejado, so a faca).
   uma baforada toma a tela e voce ganha **10 s correndo mais rapido** e
   **5 s enxergando os inimigos em vermelho atraves de tudo** (parede, cabana,
   arvore). Um contador no rodape mostra quanto falta de cada efeito.
+- **Colete** (`itens/colete.svg`): vem em 40% das caixas das cabanas e 15% das
+  do campo. **V** veste: aparece **COLETE 100** ao lado da vida, e cada dano que
+  voce leva tem **60% segurado pelo colete** ate os pontos dele acabarem (tiro de
+  50 = -20 de vida e -30 de colete). Morreu, perde o colete vestido. A conta e do
+  servidor (`danoComColete` em `src/mapgen.js`, o mesmo usado no solo e na historia).
 
 ## Lapide RIP
 
@@ -349,7 +411,7 @@ Arvore.png          arvore do cenario (reduzida para 1024 px ao carregar)
 arma.png            rifle em primeira pessoa   |  mira.png          mira do rifle
 pistola.png         pistola em primeira pessoa |  mira-pistola.png  mira da pistola
 mão-solo.png        mao vazia (segura a granada)
-caixa/              caixa.png e caixa-e.png (caixa normal e destacada)
+caixa/              caixa.png e caixa-e.png (sprites antigos, trocados pelo caixote 3D)
 itens/              granada.png e vida.png
 fonts/              Betania Patmos (fonte de desenho, servida local)
 perssonagem1/       parado.png e mirando.png do personagem 1

@@ -7,7 +7,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { makeHuts, makeBoxes, ITENS_VALIDOS } from './src/mapgen.js';
+import { makeHuts, makeBoxes, ITENS_VALIDOS, COLETE, danoComColete } from './src/mapgen.js';
 
 const LAPIDE_DURA = 120000;   // ms ate a lapide sumir
 const MAX_LAPIDES = 40;
@@ -20,6 +20,7 @@ const MIME = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.png': 'image/png',
+  '.svg': 'image/svg+xml',        // icone do colete (sem isso o navegador nao desenha)
   '.jpg': 'image/jpeg',
   '.ico': 'image/x-icon',
   '.json': 'application/json',
@@ -261,6 +262,7 @@ wss.on('connection', (ws) => {
         // partida ja rolando: entra na hora, sem esperar ninguem
         if (room.state === 'match') {
           player.health = 100;
+          player.colete = 0;
           player.alive = true;
           player.spawn = spawnFor(room, player);
           send(ws, 'match', {
@@ -277,6 +279,7 @@ wss.on('connection', (ws) => {
           room.state = 'match';
           for (const p of room.players.values()) {
             p.health = 100;
+            p.colete = 0;
             p.alive = true;
             p.spawn = spawnFor(room, p);
           }
@@ -321,8 +324,11 @@ wss.on('connection', (ws) => {
         // aliado nao toma tiro de aliado (mas a propria granada ainda machuca)
         if (victim.id !== player.id && victim.team === player.team) break;
 
-        victim.health = Math.max(0, victim.health - (Number(msg.damage) || 25));
-        send(victim.ws, 'hurt', { by: player.id, health: victim.health });
+        // o colete segura parte do tiro ate acabar
+        const r = danoComColete(Number(msg.damage) || 25, victim.colete || 0);
+        victim.colete = r.colete;
+        victim.health = Math.max(0, victim.health - r.dano);
+        send(victim.ws, 'hurt', { by: player.id, health: victim.health, colete: victim.colete });
         send(ws, 'confirmHit', { target: victim.id, health: victim.health });
 
         if (victim.health === 0) {
@@ -353,6 +359,7 @@ wss.on('connection', (ws) => {
         player.health = 100;
         player.alive = true;
         player.lapidePendente = false;
+        player.colete = 0;
         const spawn = spawnFor(room, player);
         send(ws, 'respawn', { spawn });
         broadcast(room, 'respawned', { id: player.id, x: spawn.x, z: spawn.z }, player.id);
@@ -424,6 +431,14 @@ wss.on('connection', (ws) => {
         room.drops.delete(drop.id);
         send(ws, 'picked', { id: drop.id, kind: drop.kind, slot: msg.slot });
         broadcast(room, 'dropGone', { id: drop.id });
+        break;
+      }
+
+      // vestiu um colete da mochila
+      case 'colete': {
+        if (!room || room.state !== 'match' || !player.alive) break;
+        player.colete = COLETE.max;
+        send(ws, 'vestiu', { colete: player.colete });
         break;
       }
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { makeHuts, makeBoxes, LOADOUT_INICIAL } from './mapgen.js';
+import { makeHuts, makeBoxes, LOADOUT_INICIAL, COLETE, danoComColete } from './mapgen.js';
 
 // Partida solo: roda tudo na sua maquina, sem servidor.
 //
@@ -54,6 +54,7 @@ export class SoloGame {
     this.tombs = new Map();
     this.proximaLapide = 1;
     this.vidaJogador = 100;
+    this.coleteJogador = 0;
 
     // seus aliados usam o seu operador; o time de frente sorteia entre os
     // outros (Jaime incluso), para nunca confundir inimigo com aliado
@@ -158,6 +159,7 @@ export class SoloGame {
       case 'respawn': {
         const spawn = this._spawn(this.meuTime, 0);
         this.vidaJogador = 100;
+        this.coleteJogador = 0;
         this.net._emit('respawn', { spawn });
         break;
       }
@@ -190,6 +192,11 @@ export class SoloGame {
         break;
       }
 
+      case 'colete':
+        this.coleteJogador = COLETE.max;
+        this.net._emit('vestiu', { colete: this.coleteJogador });
+        break;
+
       case 'heal': {
         this.vidaJogador = Math.min(100, (this.vidaJogador ?? 100) + (msg.amount || 35));
         this.net._emit('healed', { health: this.vidaJogador, ganho: msg.amount || 35 });
@@ -210,8 +217,10 @@ export class SoloGame {
 
   _machucarJogador(dano, quem) {
     if (this.vidaJogador <= 0) return;             // ja esta morto, esperando renascer
-    this.vidaJogador = Math.max(0, (this.vidaJogador ?? 100) - dano);
-    this.net._emit('hurt', { by: quem?.id ?? 0, health: this.vidaJogador });
+    const r = danoComColete(dano, this.coleteJogador || 0);
+    this.coleteJogador = r.colete;
+    this.vidaJogador = Math.max(0, (this.vidaJogador ?? 100) - r.dano);
+    this.net._emit('hurt', { by: quem?.id ?? 0, health: this.vidaJogador, colete: this.coleteJogador });
     if (this.vidaJogador === 0) {
       this.minhasMortes = (this.minhasMortes || 0) + 1;
       this._abate(quem, { id: 1, name: this.player.nome || 'Voce', team: this.meuTime });

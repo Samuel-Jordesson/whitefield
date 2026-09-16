@@ -1,5 +1,17 @@
 import { OPERADORES, FUNDOS, xpDoNivel } from './profile.js';
 import { OPCOES } from './settings.js';
+import { WEAPONS, WEAPON_ITEMS } from './weapons.js';
+
+const ARMAS_DE_FOGO = Object.keys(WEAPONS).filter((k) => WEAPONS[k].kind === 'gun' && WEAPON_ITEMS[k]);
+const ROTULO_CAMPO = ['ARMA 1', 'ARMA 2', 'FACA'];
+
+// resumo de uma arma para o cartao do EQUIPAR
+function descricaoArma(k) {
+  const w = WEAPONS[k];
+  if (w.kind === 'melee') return `golpe de perto · dano ${w.damage}`;
+  const dano = w.pellets ? `${w.pellets} bolinhas x ${w.damage}` : `dano ${w.damage}`;
+  return `${dano} · pente ${w.mag}${w.auto ? ' · automatica' : ''}${w.luneta ? ' · luneta' : ''}`;
+}
 
 // Menu inicial no estilo dos Call of Duty: abas na lateral, painel ao lado e
 // a arte de fundo cobrindo a tela.
@@ -142,6 +154,9 @@ export class Menu {
       <p class="menu-sub">voce e mais 4 bots contra um time de 5 — primeiro a 50 abates ganha</p>
       <h3 class="bloco">ESCOLHA O OPERADOR</h3>
       <div class="cards">${cards}</div>
+      <h3 class="bloco">ARMAS INICIAIS</h3>
+      <div class="op-carga grande">${this._miniCarga(p.dados.operador)}</div>
+      <div class="row"><button class="opt" id="btnSoloEquipar">EQUIPAR</button></div>
       <ul class="lista-info">
         <li>os bots do time de frente usam os outros operadores, para nao confundir</li>
         <li>aliado nao toma tiro de aliado, igual no online</li>
@@ -159,6 +174,7 @@ export class Menu {
       };
     }
     $('btnSolo').onclick = () => this.onJogarSolo(Number(this.profile.dados.operador) || 1);
+    $('btnSoloEquipar').onclick = () => this._abrirEquipar(this.profile.dados.operador, 'solo');
   }
 
   _entrar() {
@@ -235,11 +251,15 @@ export class Menu {
     const cards = Object.entries(OPERADORES).map(([id, o]) => {
       const meu = p.temItem('op' + id);
       const usando = String(p.dados.operador) === String(id);
-      return `<button class="card op-card ${usando ? 'ativo' : ''} ${meu ? '' : 'bloqueado'}" data-op="${id}">
-        <img src="${o.img}" alt="${esc(o.nome)}">
-        <span class="card-nome">${esc(o.nome)}</span>
-        <span class="card-tag">${usando ? 'EM USO' : meu ? 'usar' : o.preco + ' moedas'}</span>
-      </button>`;
+      return `<div class="op-bloco">
+        <button class="card op-card ${usando ? 'ativo' : ''} ${meu ? '' : 'bloqueado'}" data-op="${id}">
+          <img src="${o.img}" alt="${esc(o.nome)}">
+          <span class="card-nome">${esc(o.nome)}</span>
+          <span class="card-tag">${usando ? 'EM USO' : meu ? 'usar' : o.preco + ' moedas'}</span>
+        </button>
+        ${meu ? `<div class="op-carga">${this._miniCarga(id)}</div>
+        <button class="opt eq-botao" data-equipar="${id}">EQUIPAR</button>` : ''}
+      </div>`;
     }).join('');
 
     return `
@@ -251,6 +271,9 @@ export class Menu {
   }
 
   _ligar_operador() {
+    for (const b of this.el.painel.querySelectorAll('[data-equipar]')) {
+      b.onclick = () => this._abrirEquipar(b.dataset.equipar, 'operador');
+    }
     for (const b of this.el.painel.querySelectorAll('[data-op]')) {
       b.onclick = () => {
         const id = b.dataset.op;
@@ -263,6 +286,80 @@ export class Menu {
         this.abrir('operador');
       };
     }
+  }
+
+  // iconezinhos das 3 armas iniciais de um operador
+  _miniCarga(id) {
+    return this.profile.cargaDe(id).map((k, i) => `<span class="mini ${k ? '' : 'vazio'}" title="${ROTULO_CAMPO[i]}">
+      ${k ? `<img src="${WEAPON_ITEMS[k].img}" alt="${esc(WEAPON_ITEMS[k].name)}">` : '—'}</span>`).join('');
+  }
+
+  _abrirEquipar(id, voltar) {
+    this.opEquipar = String(id);
+    this.slotEquipar = 0;
+    this.voltarEquipar = voltar;
+    this.abrir('equipar');
+  }
+
+  _equipar() {
+    const id = this.opEquipar;
+    const o = OPERADORES[id];
+    const carga = this.profile.cargaDe(id);
+    const sel = this.slotEquipar ?? 0;
+
+    const campos = carga.map((k, i) => `
+      <button class="eq-slot ${i === sel ? 'ativo' : ''}" data-eq-slot="${i}">
+        <span class="eq-rotulo">${ROTULO_CAMPO[i]}</span>
+        ${k ? `<img src="${WEAPON_ITEMS[k].img}" alt=""><span class="eq-nome">${esc(WEAPON_ITEMS[k].name)}</span>`
+            : '<span class="eq-vazio">vazio</span>'}
+      </button>`).join('');
+
+    const lista = sel === 2 ? ['faca'] : ARMAS_DE_FOGO;
+    const opcoes = lista.map((k) => {
+      const usando = carga[sel] === k;
+      const noOutro = sel < 2 && carga[1 - sel] === k;
+      return `<button class="card eq-arma ${usando ? 'ativo' : ''}" data-eq-arma="${k}">
+        <img src="${WEAPON_ITEMS[k].img}" alt="">
+        <span class="card-nome">${esc(WEAPON_ITEMS[k].name)}</span>
+        <span class="card-tipo">${descricaoArma(k)}</span>
+        <span class="card-tag">${usando ? 'EQUIPADA' : noOutro ? `troca com ${ROTULO_CAMPO[1 - sel]}` : 'equipar'}</span>
+      </button>`;
+    }).join('') + `<button class="card eq-arma vazio ${carga[sel] ? '' : 'ativo'}" data-eq-arma="">
+        <span class="card-nome">nenhuma</span><span class="card-tag">${carga[sel] ? 'deixar vazio' : 'VAZIO'}</span>
+      </button>`;
+
+    return `
+      <h2>EQUIPAR</h2>
+      <p class="menu-sub">com o que <b>${esc(o.nome)}</b> nasce na partida — nas caixas do mapa agora so tem vida, granada e colete</p>
+      <div class="equipar">
+        <div class="eq-op"><img src="${o.img}" alt="${esc(o.nome)}"><span>${esc(o.nome)}</span></div>
+        <div class="eq-slots">${campos}</div>
+      </div>
+      <h3 class="bloco">ESCOLHA PARA ${ROTULO_CAMPO[sel]}</h3>
+      <div class="cards">${opcoes}</div>
+      <div class="row"><button id="btnEqPronto" class="primary">PRONTO</button></div>`;
+  }
+
+  _ligar_equipar() {
+    const id = this.opEquipar;
+    for (const b of this.el.painel.querySelectorAll('[data-eq-slot]')) {
+      b.onclick = () => { this.slotEquipar = Number(b.dataset.eqSlot); this.abrir('equipar'); };
+    }
+    for (const b of this.el.painel.querySelectorAll('[data-eq-arma]')) {
+      b.onclick = () => {
+        const sel = this.slotEquipar ?? 0;
+        const carga = this.profile.cargaDe(id);
+        const k = b.dataset.eqArma || null;
+        // a mesma arma nos dois campos nao: troca de lugar
+        if (k && sel < 2 && carga[1 - sel] === k) carga[1 - sel] = carga[sel];
+        carga[sel] = k;
+        this.profile.definirCarga(id, carga);
+        // escolheu a arma 1: ja pula para a arma 2
+        if (sel === 0 && k) this.slotEquipar = 1;
+        this.abrir('equipar');
+      };
+    }
+    $('btnEqPronto').onclick = () => this.abrir(this.voltarEquipar || 'operador');
   }
 
   _loja() {
@@ -304,9 +401,19 @@ export class Menu {
 
   _config() {
     const grupos = Object.entries(OPCOES).map(([chave, op]) => {
+      if (op.tipo === 'barra') {
+        const v = this.settings.get(chave);
+        return `<div class="cfg">
+          <div class="cfg-nome">${esc(op.titulo)}<small>${esc(op.ajuda)}</small></div>
+          <div class="cfg-barra">
+            <input type="range" min="${op.min}" max="${op.max}" step="${op.passo}" value="${v}" data-barra="${chave}">
+            <output>${op.formato(v)}</output>
+          </div>
+        </div>`;
+      }
       const atual = this.settings.chaveDe(chave);
       const botoes = Object.entries(op.valores).map(([v, info]) =>
-        `<button class="opt ${v === atual ? 'ativa' : ''}" data-cfg="${chave}" data-val="${v}">${esc(info.nome)}</button>`
+        `<button class="opt ${v === atual ? 'ativa' : ''} ${info.cor ? 'com-cor' : ''}" ${info.cor ? `style="--amostra:${info.cor}"` : ''} data-cfg="${chave}" data-val="${v}">${esc(info.nome)}</button>`
       ).join('');
       return `<div class="cfg">
         <div class="cfg-nome">${esc(op.titulo)}<small>${esc(op.ajuda)}</small></div>
@@ -321,6 +428,15 @@ export class Menu {
   }
 
   _ligar_config(container = this.el.painel) {
+    // barra: aplica enquanto arrasta, sem redesenhar (senao solta o arraste)
+    for (const r of container.querySelectorAll('[data-barra]')) {
+      const chave = r.dataset.barra;
+      const saida = r.parentElement.querySelector('output');
+      r.oninput = () => {
+        this.settings.set(chave, r.value);
+        saida.textContent = OPCOES[chave].formato(this.settings.get(chave));
+      };
+    }
     for (const b of container.querySelectorAll('[data-cfg]')) {
       b.onclick = () => {
         this.settings.set(b.dataset.cfg, b.dataset.val);
