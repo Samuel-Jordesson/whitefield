@@ -184,7 +184,7 @@ export class Grass {
     for (let i = 0; i < MAX_CABANAS; i++) {
       const h = huts[i];
       if (!h) { this.uniforms.uHuts.value[i].set(0, 0, 0, 0); continue; }
-      const s = spec(h.kind);
+      const s = spec(h);          // cabana pelo modelo, construcao pelo tamanho dela
       this.uniforms.uHuts.value[i].set(h.x, h.z, s.w / 2 + 0.3, s.d / 2 + 0.3);
       this.uniforms.uHutRot.value[i].set(Math.cos(h.rot), Math.sin(h.rot));
     }

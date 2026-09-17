@@ -2,6 +2,8 @@
 // Fica aqui porque o servidor usa para as salas online e o cliente usa para a
 // partida solo — os dois precisam gerar exatamente a mesma coisa.
 
+import { CAIXAS_CONSTRUCOES, emConstrucao } from './construcoes/pontos.js';
+
 export function makeRng(seed) {
   let a = seed >>> 0 || 1;
   return () => {
@@ -49,10 +51,10 @@ export function makeHuts(seed, count = 7) {
     const r = 22 + rnd() * 78;
     const x = Math.cos(ang) * r, z = Math.sin(ang) * r;
 
-    // nao deixa uma cabana encostar na outra
+    // nao deixa uma cabana encostar na outra nem na casa/predio do mapa
     const longe = huts.every((h) =>
       Math.hypot(h.x - x, h.z - z) > HUT_SIZE[h.kind] + HUT_SIZE[kind] + 6);
-    if (!longe) continue;
+    if (!longe || emConstrucao(x, z, HUT_SIZE[kind] + 4)) continue;
 
     huts.push({ id: huts.length, kind, x, z, rot: rnd() * Math.PI * 2 });
   }
@@ -95,16 +97,22 @@ export function makeBoxes(seed, huts = [], soltas = 8) {
     }
   }
 
-  // e as soltas pelo campo
+  // caixas da casa do meio e do predio: uma em cada andar, sempre no mesmo
+  // canto (a construcao nao muda de partida para partida, so o conteudo)
+  for (const p of CAIXAS_CONSTRUCOES) {
+    boxes.push({ id: boxes.length, x: p.x, y: p.y, z: p.z, items: conteudo(true) });
+  }
+
+  // e as soltas pelo campo (sorteia de novo se cair em cima da casa ou do predio)
   for (let i = 0; i < soltas; i++) {
-    const ang = rnd() * Math.PI * 2;
-    const r = 12 + rnd() * 85;
-    boxes.push({
-      id: boxes.length,
-      x: Math.cos(ang) * r,
-      z: Math.sin(ang) * r,
-      items: conteudo(false),
-    });
+    let x = 0, z = 0;
+    for (let tenta = 0; tenta < 12; tenta++) {
+      const ang = rnd() * Math.PI * 2;
+      const r = 12 + rnd() * 85;
+      x = Math.cos(ang) * r; z = Math.sin(ang) * r;
+      if (!emConstrucao(x, z, 3)) break;
+    }
+    boxes.push({ id: boxes.length, x, z, items: conteudo(false) });
   }
   return boxes;
 }

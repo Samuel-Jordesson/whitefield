@@ -3,9 +3,11 @@ import * as TEX from './textures.js';
 import { Billboard, makeBlobShadow } from './billboard.js';
 import { WEAPON_ITEMS } from './weapons.js';
 import { LOADOUT_INICIAL } from './mapgen.js';
+import { rotulo, texto } from './glifos.js';
 
 const _dir = new THREE.Vector3();
 const _to = new THREE.Vector3();
+const _tela = new THREE.Vector3();
 
 // caixote 3D: corpo retangular + tampa com dobradica atras
 const CAIXA = { w: 1.15, h: 0.52, d: 0.72, tampa: 0.1 };
@@ -32,7 +34,10 @@ export const ITEMS = {
   colete: { name: 'Colete', img: 'itens/colete.svg' },
 };
 
-const TECLA = { granada: 'G', vida: 'Q', cigarro: 'C', colete: 'V' };
+// item da mochila -> [acao (vira botao do controle), tecla do teclado]
+const TECLA = {
+  granada: ['KeyG', 'G'], vida: ['KeyQ', 'Q'], cigarro: ['KeyC', 'C'], colete: ['KeyV', 'V'],
+};
 
 // tudo que pode ser carregado: itens da mochila + as armas
 export const TUDO = { ...ITEMS, ...WEAPON_ITEMS };
@@ -245,15 +250,23 @@ export class LootManager {
       if (target) this._setFocus(target, true);
     }
 
-    const showPrompt = !!target && !this.aberto;
+    const showPrompt = !!target && !this.aberto && this._posicionarPrompt(target, camera);
     this.el.prompt.classList.toggle('hidden', !showPrompt);
     if (showPrompt) {
-      const n = target.items.length;
-      const acao = target.tumba ? `saquear <i>${escapeHtml(target.name || '???')}</i>` : 'abrir caixa';
-      this.el.prompt.innerHTML = n
-        ? `<b>E</b> ${acao} <span>${n} ${n === 1 ? 'item' : 'itens'}</span>`
-        : `<b>E</b> ${acao} <span>vazia</span>`;
+      const t = texto('KeyE', 'E');
+      if (this.el.prompt.textContent !== t) this.el.prompt.textContent = t;
     }
+  }
+
+  // Poe o "E" logo acima da caixa (ou da lapide) na tela. Devolve false se o
+  // ponto ficou atras da camera, ai nem mostra.
+  _posicionarPrompt(box, camera) {
+    const alto = box.tumba ? TOMB_HEIGHT + 0.22 : CAIXA.h + CAIXA.tampa + 0.3;
+    _tela.set(box.mesh.position.x, box.mesh.position.y + alto, box.mesh.position.z).project(camera);
+    if (_tela.z > 1) return false;
+    this.el.prompt.style.left = `${(_tela.x * 0.5 + 0.5) * window.innerWidth}px`;
+    this.el.prompt.style.top = `${(-_tela.y * 0.5 + 0.5) * window.innerHeight}px`;
+    return true;
   }
 
   // caixa mais proxima dentro do cone de visao
@@ -388,10 +401,10 @@ export class LootManager {
     this.el.bagHud.innerHTML = Object.entries(ITEMS).map(([kind, info]) => {
       const n = this.count(kind);
       if (!n) return '';
-      const tecla = TECLA[kind] || '';
+      const [acao, tecla] = TECLA[kind] || ['', ''];
       return `<div class="bag-item ${info.raro ? 'raro' : ''}">
         <img src="${info.img}" alt="${info.name}"><span>${n}</span>
-        <b>${tecla}</b>
+        ${rotulo(acao, tecla)}
       </div>`;
     }).join('');
 

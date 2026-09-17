@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as TEX from './textures.js';
+import { rotulo } from './glifos.js';
 import { TUDO, EH_ARMA } from './loot.js';
 
 // Itens largados no chao. Ficam flutuando e girando, e ganham volume por
@@ -148,7 +149,7 @@ export class DropManager {
     this.focused = alvo;
     this.prompt.classList.toggle('hidden', !alvo);
     if (alvo) {
-      this.prompt.innerHTML = `<b>E</b> pegar <span>${TUDO[alvo.kind].name}</span>`;
+      this.prompt.innerHTML = `${rotulo('KeyE', 'E')} pegar <span>${TUDO[alvo.kind].name}</span>`;
     }
   }
 

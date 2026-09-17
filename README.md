@@ -192,6 +192,45 @@ para nao dar confusao na hora do tiro.
 | Tab | placar |
 | ESC | pausa — menu no meio da tela com **continuar**, **configuracoes** e **sair do jogo** |
 
+## Controle (Xbox e compativeis)
+
+Plugou um controle, o jogo ja e dele: nao tem nada para configurar nem para
+ligar nas configuracoes. Assim que o navegador ve o controle (ele so aparece
+depois do primeiro aperto de botao), **os rotulos das teclas na tela viram os
+botoes do Xbox** — o "E" que aparece em cima da caixa vira "RB", a lista da
+pausa troca inteira, os atalhos da mochila viram o direcional. Tirou o
+controle, tudo volta a ser teclado.
+
+| Botao | Acao |
+|---|---|
+| Analogico esquerdo | andar (no fim do curso, corre) |
+| Analogico direito | olhar |
+| **RT** | atirar |
+| **LT** | mirar |
+| A | pular |
+| B | agachar |
+| X | recarregar |
+| Y | trocar de arma |
+| **RB** | abrir caixa / saquear / pegar item |
+| **LB** | granada na mao |
+| L3 (apertar o analogico) | correr |
+| R3 | faca |
+| Direcional ▲ ▼ ◀ ▶ | curativo · colete · cigarro · mochila |
+| VIEW | placar (segurando) |
+| MENU | pausar e voltar ao jogo |
+
+**Nos menus e na tela de saque** o controle tambem anda sozinho: o direcional
+pula de botao em botao (ele escolhe o mais proximo na direcao apontada, entao
+funciona igual numa lista ou numa grade de itens), **A** aperta o que estiver
+escolhido — inclusive pegar o item da caixa — e **B** fecha a caixa, volta do
+submenu ou tira a pausa. Ao abrir uma tela, o primeiro botao ja vem escolhido,
+marcado com um tracinho em volta.
+
+Um detalhe do navegador: prender o mouse (o pointer lock) so vale logo depois
+de um clique, e apertar botao de controle nao conta como clique. Entao, com
+controle ligado, o jogo volta a rodar sem prender o mouse — da para jogar a
+partida inteira sem encostar nele.
+
 ## Celular
 
 Abrindo o jogo no celular (ou no PC com `?mobile=1` no endereco, para testar) aparecem
@@ -302,6 +341,55 @@ para entrar, se esconder atras da parede e atirar pela janela. Sao tres modelos:
   todo mundo, e as arvores nao nascem dentro delas.
 - **Toda cabana tem 1 ou 2 caixas de suprimento la dentro**, e essas sao as mais
   recheadas do mapa.
+
+## A casa e o predio
+
+No meio do campo tem uma **casa de dez andares** e, mais para o lado, um
+**predio de cinco andares com terraco**. As duas sao construcoes de verdade: da
+para entrar, subir a escada ate o topo, saquear caixa em cada andar e atirar de
+cima. Nao dependem da semente da partida — estao sempre no mesmo lugar, iguais
+para todo mundo, online ou no solo.
+
+| | Onde | Tamanho | Andares | Pe-direito |
+|---|---|---|---|---|
+| Casa | centro do mapa (0, 0) | 16 x 13 m | 10 + terraco | 3,0 m |
+| Predio | leste (58, 26) | 22 x 17 m | 5 + terraco | 3,4 m |
+
+**A casa**, andar por andar: terreo com sala, cozinha e lavabo (e uma varanda
+na porta da frente), sala de jantar com despensa, quarto do casal com banheiro,
+quarto das criancas, escritorio/biblioteca, lavanderia, sala de tv, quarto de
+hospedes, deposito baguncado e a cobertura. Em cima, terraco com caixa d'agua,
+antena e ar-condicionado.
+
+**O predio** e no espirito do predio do modo historia: corredor com carpete de
+ponta a ponta, portas numeradas (o numero segue o andar), elevador interditado,
+portaria no terreo, seis unidades por andar (quarto, sala, cozinha, escritorio,
+deposito e um apartamento abandonado com entulho e pichacao) e heliponto
+pintado no terraco.
+
+Detalhes de como funciona:
+
+- **A escada e de verdade**: dois lances por andar, com patamar no meio, igual
+  ao do modo historia. O piso das escadas e uma rampa lisa para andar, mas o
+  desenho tem degrau por degrau. Testado andando: da para sair da porta da
+  frente e chegar no terraco dos dois predios so caminhando.
+- **Toda porta nasce aberta** — no jogo nao tem como abrir porta, entao porta
+  fechada seria parede.
+- **Cada andar tem uma caixa de suprimento** (as mesmas caixas boas das
+  cabanas), inclusive no terraco.
+- Arvore, cabana e grama nao nascem em cima das construcoes, e as caixas soltas
+  do campo sao sorteadas de novo se cairem dentro delas.
+- **Da janela nao da para pular**: a moldura barra a passagem, mas o tiro
+  atravessa normalmente.
+- **So o andar onde voce esta fica ligado**: o recheio (moveis e paredes de
+  dentro) de cada andar e um grupo separado que o jogo acende quando alguem
+  chega perto e apaga quando ninguem esta la. De longe sobra so a casca, que e
+  o que da para ver mesmo. As paredes continuam barrando mesmo apagadas.
+- A granada quica no andar em que caiu, nao no chao la embaixo.
+
+Para mexer nas duas construcoes: `src/construcoes/casa.js` e
+`src/construcoes/predio.js` (as plantas), `src/construcoes/pontos.js` (onde
+ficam e onde nascem as caixas — o servidor le esse arquivo tambem).
 
 ## Grama
 
@@ -422,6 +510,13 @@ src/
   menu.js           menu inicial: abas, loja, operador, fundo e configuracoes
   solo.js           partida contra bots, fingindo ser o servidor
   mapgen.js         cabanas e caixas (usado pelo servidor e pelo modo solo)
+  construcoes/
+    index.js        monta a casa e o predio do mapa e acende/apaga cada andar
+    pontos.js       medidas, lugar e caixas das duas (sem three: o servidor le)
+    casa.js         a casa de dez andares: planta de cada andar e a escada
+    predio.js       o predio: corredor, apartamentos, escada e terraco
+    texturas.js     as texturas das duas (as mesmas do modo historia)
+    util.js         agrupa o recheio de um andar para poder apagar de uma vez
   historia/
     historia.js     modo historia: IA dos inimigos, areas, checkpoints, helicoptero
     cinematica.js   camera em trilho, tarjas de cinema, legendas, titulo e fade
@@ -432,6 +527,8 @@ src/
     texturas.js     reboco, concreto, portas, placas, cidade, heliponto
   profile.js        nome, nivel, XP, moedas e compras (salvo no navegador)
   settings.js       as configuracoes e como cada uma mexe no jogo
+  controle.js       controle de videogame: analogicos, botoes e menu no direcional
+  glifos.js         os rotulos da tela (tecla do teclado ou botao do Xbox)
   net.js            cliente WebSocket (conecta no mesmo host da pagina)
   players.js        adversarios: sprite parado/mirando, interpolacao, morte
   world.js          chao, neblina, luzes/sombras e cenario espalhado

@@ -7,7 +7,7 @@ import { Net } from './net.js';
 import { PlayerManager, loadCharacters } from './players.js';
 import { LootManager, loadLootTextures, ITEMS, TUDO, EH_ARMA } from './loot.js';
 import { DropManager } from './drops.js';
-import { GrenadeManager, throwVelocity, blastDamage, BLAST_RADIUS } from './grenade.js';
+import { GrenadeManager, throwVelocity, blastDamage, BLAST_RADIUS, definirChao } from './grenade.js';
 import { Grass } from './grass.js';
 import { Profile } from './profile.js';
 import { Settings, escalaMirando } from './settings.js';
@@ -15,8 +15,11 @@ import { Menu } from './menu.js';
 import { SoloGame } from './solo.js';
 import { Historia } from './historia/historia.js';
 import { HUT_TYPES } from './huts.js';
+import { FOOTPRINTS } from './construcoes/index.js';
 import { Bussola } from './bussola.js';
 import { ControlesToque } from './toque.js';
+import { Controle } from './controle.js';
+import { aoTrocarControle } from './glifos.js';
 
 /* ---------------- render ---------------- */
 
@@ -34,6 +37,8 @@ const FOV_ADS = 42;
 
 const world = new World(scene);
 const player = new Player(camera, world);
+// granada quica no andar em que caiu, nao no chao la embaixo
+definirChao((x, z, y) => world.alturaChao(x, z, y));
 const raycaster = new THREE.Raycaster();
 const CENTER = new THREE.Vector2(0, 0);
 const MIRA_TIRO = new THREE.Vector2();
@@ -348,7 +353,9 @@ net.on('match', (m) => {
     if (historia.ativo) historia.parar();
     world.sairHistoria();
     if (m.seed !== undefined) world.rebuild(m.seed, m.huts || []);   // mesmo cenario para todos
-    grass.setHuts(m.huts || [], (kind) => HUT_TYPES[kind] || HUT_TYPES.madeira);
+    // a grama tambem nao nasce dentro da casa nem do predio
+    grass.setHuts([...(m.huts || []), ...FOOTPRINTS],
+      (h) => (h.w ? h : HUT_TYPES[h.kind] || HUT_TYPES.madeira));
   }
   grass.mesh.visible = !m.historia;     // nada de grama dentro do predio
   abatesNaPartida = 0;
@@ -568,6 +575,15 @@ function lockMouse() {
     if (phase === 'pause') show('match');
     return;
   }
+  // Com controle o jogo volta na hora, sem depender do mouse: o navegador so
+  // deixa prender o ponteiro logo depois de um clique, e apertar o botao do
+  // controle nao conta como clique. Ainda assim tenta prender, para quem usa
+  // os dois juntos.
+  if (controle.conectado) {
+    running = true;
+    $('voltarJogo').classList.add('hidden');
+    if (phase === 'pause') show('match');
+  }
   // em alguns contextos (iframe, aba sem foco) o navegador recusa — e tudo bem
   try {
     const p = canvas.requestPointerLock();
@@ -583,12 +599,14 @@ function lockMouse() {
 function pedirClique() {
   if (phase !== 'match' || loot.aberto || historia.emCena || dead) return;
   if (document.pointerLockElement === canvas) return;
+  if (controle.conectado) { running = true; return; }   // de controle segue sem clique
   $('voltarJogo').classList.remove('hidden');
 }
 $('voltarJogo').onclick = () => { $('voltarJogo').classList.add('hidden'); lockMouse(); };
 
 function soltarMouse() {
-  if (MOBILE) running = false;
+  // sem mouse preso (celular ou controle) e o `running` que segura o jogador
+  if (MOBILE || document.pointerLockElement !== canvas) running = false;
   else document.exitPointerLock();
 }
 
@@ -606,26 +624,39 @@ $('lootFechar').onclick = () => loot.close();
 
 /* ---------------- celular ---------------- */
 
-const toque = MOBILE ? new ControlesToque({
-  player,
-  acoes: {
-    // reaproveita todo o teclado: o botao "aperta" a tecla
-    tecla: (code) => dispatchEvent(new KeyboardEvent('keydown', { code, key: code })),
-    olhar: (dx, dy) => {
-      if (!running || dead || historia.emCena) return;
-      aiming.dx = dx; aiming.dy = dy;
-      player.look(dx * 1.5, dy * 1.5);
-    },
-    atirar: (on) => {
-      if (!on) { weapon.releaseTrigger(); return; }
-      if (running && !dead && !historia.emCena) weapon.pullTrigger();
-    },
-    mirar: (on) => { if (running && !dead) { weapon.setAiming(on); sendStateNow(); } },
-    trocarArma: () => { if (running && !dead && !historia.emCena) cycleWeapon(1); },
-    pausar: () => pausar(),
-    pularCena: () => dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' })),
+// O que os botoes fazem, seja o botao na tela do celular ou o do controle.
+const acoes = {
+  // reaproveita todo o teclado: o botao "aperta" a tecla
+  tecla: (code) => dispatchEvent(new KeyboardEvent('keydown', { code, key: code })),
+  olhar: (dx, dy) => {
+    if (!running || dead || historia.emCena) return;
+    aiming.dx = dx; aiming.dy = dy;
+    player.look(dx * 1.5, dy * 1.5);
   },
-}) : null;
+  atirar: (on) => {
+    if (!on) { weapon.releaseTrigger(); return; }
+    if (running && !dead && !historia.emCena) weapon.pullTrigger();
+  },
+  mirar: (on) => { if (running && !dead) { weapon.setAiming(on); sendStateNow(); } },
+  trocarArma: () => { if (running && !dead && !historia.emCena) cycleWeapon(1); },
+  pausar: () => (phase === 'pause' ? lockMouse() : pausar()),
+  pularCena: () => dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' })),
+  // B do controle: fecha o que estiver aberto
+  voltar: () => {
+    if (loot.aberto) { loot.close(); return; }
+    if (phase === 'pause') { document.getElementById('pausaConfig').classList.contains('hidden') ? lockMouse() : mostrarPausaConfig(false); return; }
+    const aberta = document.querySelector('.screen:not(.hidden)');
+    const sair = aberta?.querySelector('#btnMenuVoltar, #btnPauseVoltar, #btnEndOk, #btnLeave');
+    sair?.click();
+  },
+};
+
+const toque = MOBILE ? new ControlesToque({ player, acoes }) : null;
+
+// controle de videogame: entra e sai a qualquer hora, sem configurar nada
+const controle = new Controle({ player, acoes });
+// os rotulos do HUD trocam junto (E vira RB, G vira LB...)
+aoTrocarControle(() => { loot.renderHud(); loot.renderPanel(); });
 
 // Tela cheia (como o F11). O botao fica sempre na pagina inicial e, no celular,
 // tambem durante a partida; some quando a tela ja esta cheia (ou quando o jogo
@@ -1107,6 +1138,8 @@ function frame() {
   if (solo.ativo && phase === 'match') solo.update(dt);
   atualizarCigarro();
   if (phase === 'match' || phase === 'pause') bussola.update(player, remote);
+  controle.update(dt, { jogando, emCena });
+
   if (toque) {
     toque.update({
       jogando: phase === 'match' && running && !dead && !loot.aberto,

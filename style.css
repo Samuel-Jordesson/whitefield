@@ -181,17 +181,25 @@ html, body {
 }
 .bag-item.raro { border-color: #111; box-shadow: 0 0 0 1px #111 inset; }
 
+/* perto de uma caixa: so a letra E, flutuando em cima dela.
+   Desenhada a caneta como o resto do jogo: circulo torto, sombra e um
+   segundo risco em volta, como quem passou duas vezes no papel. */
 #lootPrompt {
-  position: absolute; left: 50%; top: 56%; transform: translateX(-50%);
-  background: rgba(255,255,255,.9); border: 1px solid #111;
-  padding: 8px 16px; font-size: 16px; letter-spacing: .04em;
+  position: absolute; left: 0; top: 0;
+  transform: translate(-50%, -50%) rotate(-5deg);
+  min-width: 30px; height: 30px; padding: 0 7px; display: grid; place-items: center;
+  background: rgba(255,255,255,.86); color: #141414;
+  border: 2px solid #141414;
+  border-radius: 52% 48% 50% 46% / 48% 52% 46% 54%;
+  box-shadow: 1.5px 2px 0 rgba(20,20,20,.5);
+  font-size: 17px; line-height: 1;
 }
-#lootPrompt b {
-  display: inline-block; min-width: 20px; text-align: center;
-  border: 2px solid #111; padding: 1px 6px; margin-right: 8px;
-  -webkit-text-stroke: 0.5px currentColor;
+#lootPrompt::after {
+  content: ''; position: absolute; inset: -4px;
+  border: 1.2px solid rgba(20,20,20,.4);
+  border-radius: 46% 54% 48% 52% / 54% 46% 52% 48%;
+  transform: rotate(9deg);
 }
-#lootPrompt span { color: #888; margin-left: 6px; }
 
 /* barras de placar dos times */
 #teamBars {
@@ -249,7 +257,6 @@ html, body {
 .grid-2 { grid-template-columns: repeat(3, 96px); }
 .slot.gun.faca { border-style: dashed; }
 #boxCol.tumba h3 { letter-spacing: .2em; }
-#lootPrompt i { font-style: normal; text-decoration: underline; }
 .grid.drop { border-color: #111; background: rgba(0,0,0,.05); }
 
 .loot-col h3.mt { margin-top: 20px; }
@@ -1011,7 +1018,7 @@ body.toque #gunHud { right: auto; left: 50%; bottom: 56px; transform: translateX
 body.toque #objetivo { left: 72px; top: 70px; }
 body.toque #killfeed { top: 70px; font-size: 13px; }
 body.toque #teamBars { transform: translateX(-50%) scale(.75); transform-origin: top center; top: 46px; }
-body.toque #lootPrompt, body.toque #dropPrompt, body.toque #historiaPrompt { top: 38%; }
+body.toque #dropPrompt, body.toque #historiaPrompt { top: 38%; }
 body.toque #weaponWrap { width: 34vw; min-width: 260px; }
 body.toque #lootPanel { overflow-y: auto; align-content: start; padding-top: 60px; }
 body.toque .loot-inner { transform: scale(.66); transform-origin: top center; margin-bottom: -30%; }
@@ -1022,3 +1029,37 @@ body.toque #voltarJogo { display: none !important; }
 #telaCheia { left: auto; right: 118px; transform: rotate(-1deg); padding: 6px 12px; font-size: 13px; }
 body.toque .tb-name { white-space: nowrap; }
 body.toque .loot-fechar { right: auto; left: 16px; }
+
+/* ---------------- botoes do controle ---------------- */
+/* Os mesmos rotulos do teclado, desenhados como os botoes do Xbox: circulo
+   para A/B/X/Y, pastilha para LB/RB/LT/RT e quadradinho para o direcional. */
+.glifo {
+  display: inline-grid; place-items: center; vertical-align: -3px;
+  min-width: 21px; height: 21px; padding: 0 5px;
+  border: 2px solid currentColor; border-radius: 6px;
+  font-family: var(--fonte); font-style: normal; font-size: 12px; line-height: 1;
+  letter-spacing: .02em;
+}
+.glifo.face {
+  width: 22px; height: 22px; padding: 0; border-radius: 50%;
+  font-size: 13px;
+}
+.glifo.ombro, .glifo.gatilho { border-radius: 11px / 8px; font-size: 11px; }
+.glifo.gatilho { border-style: solid solid double solid; }
+.glifo.seta { width: 22px; padding: 0; border-radius: 5px; font-size: 10px; }
+.glifo.stick { border-radius: 50% 50% 45% 45%; font-size: 11px; }
+.glifo.sistema { font-size: 9px; letter-spacing: .06em; }
+
+.so-controle { display: none; }
+body.controle .so-controle { display: block; }
+body.controle .loot-hint:not(.so-controle):not(.so-toque) { display: none; }
+
+/* de controle nao tem cursor: o que esta escolhido fica marcado a caneta */
+body.controle button:focus-visible,
+body.controle button:focus,
+body.controle .slot:focus,
+body.controle .card:focus,
+body.controle .aba:focus {
+  outline: 3px solid #111; outline-offset: 3px;
+}
+body.controle .slot:focus { background: rgba(0,0,0,.06); }

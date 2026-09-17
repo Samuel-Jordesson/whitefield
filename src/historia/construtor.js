@@ -106,14 +106,14 @@ export class Construtor {
 
   // Parede ao longo de X (fixa em z) ou de Z (fixa em x), de `de` ate `ate`,
   // com vaos: [{ de, ate, base, topo, porta: {tex, aberta}, janela: true, vidro }]
-  parede(eixo, fixo, de, ate, y, h, vaos = [], { mat = 'reboco', esp = 0.2, externa = false } = {}) {
+  parede(eixo, fixo, de, ate, y, h, vaos = [], { mat = 'reboco', esp = 0.2, externa = false, molduras = true, contorno = false } = {}) {
     const ordenados = [...vaos].sort((a, b) => a.de - b.de);
     const bloco = (a, b, y0, y1, colide = true) => {
       const len = b - a;
       if (len < 0.02 || y1 - y0 < 0.02) return;
       const meio = (a + b) / 2;
-      if (eixo === 'x') this.caixa({ x: meio, y: y0, z: fixo, w: len, h: y1 - y0, d: esp, mat, colide });
-      else this.caixa({ x: fixo, y: y0, z: meio, w: esp, h: y1 - y0, d: len, mat, colide });
+      if (eixo === 'x') this.caixa({ x: meio, y: y0, z: fixo, w: len, h: y1 - y0, d: esp, mat, colide, contorno });
+      else this.caixa({ x: fixo, y: y0, z: meio, w: esp, h: y1 - y0, d: len, mat, colide, contorno });
     };
 
     let cursor = de;
@@ -129,7 +129,7 @@ export class Construtor {
         if (eixo === 'x') this.barreira(meio, fixo, len, esp, y, y + h);
         else this.barreira(fixo, meio, esp, len, y, y + h);
       }
-      if (v.janela) this._moldura(eixo, fixo, v.de, v.ate, y + base, y + topo, esp);
+      if (v.janela && molduras) this._moldura(eixo, fixo, v.de, v.ate, y + base, y + topo, esp);
       if (v.porta) this._porta(eixo, fixo, v, y, topo, esp);
       cursor = v.ate;
     }

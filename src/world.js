@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import * as TEX from './textures.js';
 import { Billboard, makeBlobShadow } from './billboard.js';
 import { buildHut, hutRadius } from './huts.js';
+import { construcoesDoMapa, atualizarConstrucoes, CONSTRUCOES } from './construcoes/index.js';
 
 export const WORLD_SIZE = 220;      // metade do lado do campo
 export const FOG_NEAR = 40;
@@ -28,7 +29,9 @@ export class World {
     this.boxColliders = [];  // { x, z, hw, hd, rot } — paredes das cabanas
     this.shadows = [];       // manchas de contato dos props
     this.huts = [];          // grupos 3D das cabanas
-    this.pisos = [];         // modo historia: andares, rampas e escadas
+    this.pisos = [];         // andares, rampas e escadas (casa, predio, historia)
+    this.pisosCampo = [];    // os do campo, para voltar depois da historia
+    this.chaoBase = 0;       // altura fora de qualquer piso (no campo e o chao)
     this.historia = null;
 
     this.shadowTex = TEX.blobShadowTexture();
@@ -60,13 +63,27 @@ export class World {
     this.boxColliders.length = 0;
     this.huts.length = 0;
 
-    this.hutSpots = huts.map((h) => ({ ...h, r: hutRadius(h.kind) }));
+    this.hutSpots = [
+      ...huts.map((h) => ({ ...h, r: hutRadius(h.kind) })),
+      ...CONSTRUCOES.map((c) => ({ x: c.x, z: c.z, r: c.raio })),
+    ];
     for (const h of huts) {
       const { grupo, barreiras } = buildHut(h);
       this.scene.add(grupo);
       this.huts.push(grupo);
       this.boxColliders.push(...barreiras);
     }
+
+    // a casa do meio e o predio: sempre os mesmos, so voltam para a cena
+    const fixas = construcoesDoMapa();
+    for (const g of fixas.grupos) {
+      g.visible = !this.historia;
+      this.scene.add(g);
+      this.huts.push(g);                 // o tiro bate nas paredes delas
+    }
+    this.boxColliders.push(...fixas.barreiras);
+    this.pisosCampo = fixas.pisos;
+    if (!this.historia) this.pisos = this.pisosCampo;
 
     this._scatterProps(this.scene, makeRng(seed));
   }
@@ -83,7 +100,7 @@ export class World {
   // sempre 0. No predio os andares ficam empilhados, entao vale o piso mais
   // alto que ainda esta abaixo dos pes (com uma folga de degrau).
   alturaChao(x, z, y = 0) {
-    if (!this.pisos.length) return 0;
+    if (!this.pisos.length) return this.chaoBase;
     let melhor = -60;
     for (const p of this.pisos) {
       if (x < p.x0 || x > p.x1 || z < p.z0 || z > p.z1) continue;
@@ -97,7 +114,7 @@ export class World {
       }
       if (h <= y + 0.6 && h > melhor) melhor = h;
     }
-    return melhor;
+    return melhor > -60 ? melhor : this.chaoBase;
   }
 
   // Troca o campo aberto por uma fase do modo historia (o campo so fica
@@ -112,6 +129,7 @@ export class World {
       fundo: this.scene.background.getHex(),
     };
     for (const o of [this.ground, this.ring, ...this.props, ...this.shadows, ...this.huts]) o.visible = false;
+    this.chaoBase = -60;                 // fora do predio da historia se cai
     this.props = [];
     this.shadows = [];
     this.huts = [nivel.grupo];               // o tiro bate nas paredes do predio
@@ -128,7 +146,8 @@ export class World {
     this.scene.remove(h.nivel.grupo);
     this.props = h.props; this.shadows = h.shadows; this.huts = h.huts;
     this.colliders = h.colliders; this.boxColliders = h.boxColliders;
-    this.pisos = [];
+    this.pisos = this.pisosCampo;
+    this.chaoBase = 0;
     for (const o of [this.ground, this.ring, ...this.props, ...this.shadows, ...this.huts]) o.visible = true;
     this.scene.fog.near = h.fog.near; this.scene.fog.far = h.fog.far;
     this.scene.fog.color.setHex(h.fog.cor);
@@ -275,6 +294,7 @@ export class World {
     // billboards acompanham a camera; o sol segue o jogador para a sombra
     // sempre cobrir a area util do mapa
     for (const p of this.props) p.faceCamera(camera);
+    if (!this.historia) atualizarConstrucoes(camera.position);
 
     // o ceu acompanha o jogador, para nunca chegar perto da borda
     this.ceu.position.set(camera.position.x, 0, camera.position.z);

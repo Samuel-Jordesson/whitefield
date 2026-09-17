@@ -69,7 +69,7 @@
 
   <div id="bagHud"></div>
   <div id="gunHud"></div>
-  <div id="lootPrompt" class="hidden"><b>E</b> abrir caixa</div>
+  <div id="lootPrompt" class="hidden">E</div>
   <div id="dropPrompt" class="hidden"><b>E</b> pegar</div>
 
   <!-- modo historia -->
@@ -233,19 +233,21 @@
         <button id="btnQuit">SAIR DO JOGO</button>
       </div>
       <ul class="keys">
-      <li><b>W A S D</b> mover</li>
-      <li><b>Mouse</b> olhar</li>
-      <li><b>Botao esquerdo</b> atirar</li>
-      <li><b>Botao direito</b> mirar (zoom)</li>
-      <li><b>1 a 3 · roda</b> arma 1 · arma 2 · faca</li>
-      <li><b>E</b> abrir caixa / saquear RIP</li>
-      <li><b>G</b> granada na mao</li>
-      <li><b>Q</b> usar curativo</li>
-      <li><b>C</b> acender cigarro</li>
-      <li><b>V</b> vestir colete</li>
+      <li><b data-controle="mover">W A S D</b> mover</li>
+      <li><b data-controle="olhar">Mouse</b> olhar</li>
+      <li><b data-controle="atirar">Botao esquerdo</b> atirar</li>
+      <li><b data-controle="mirar">Botao direito</b> mirar (zoom)</li>
+      <li><b data-controle="armas">1 a 3 · roda</b> arma 1 · arma 2 · faca</li>
+      <li><b data-controle="KeyE">E</b> abrir caixa / saquear RIP</li>
+      <li><b data-controle="KeyI">I</b> mochila</li>
+      <li><b data-controle="KeyG">G</b> granada na mao</li>
+      <li><b data-controle="KeyQ">Q</b> usar curativo</li>
+      <li><b data-controle="KeyC">C</b> acender cigarro</li>
+      <li><b data-controle="KeyV">V</b> vestir colete</li>
       <li>armas iniciais: <b>OPERADOR › EQUIPAR</b></li>
-      <li><b>Shift</b> correr · <b>Espaco</b> pular</li>
-        <li><b>R</b> recarregar · <b>Tab</b> placar</li>
+      <li><b data-controle="correr">Shift</b> correr · <b data-controle="Space">Espaco</b> pular</li>
+      <li><b data-controle="ControlLeft">Ctrl</b> agachar · <b data-controle="Tab">Tab</b> placar</li>
+        <li><b data-controle="KeyR">R</b> recarregar · <b data-controle="Escape">ESC</b> pausar</li>
       </ul>
     </div>
 
@@ -281,6 +283,7 @@
   </div>
   <p class="loot-hint">arraste para mover · <b>I</b>, <b>E</b> ou <b>ESC</b> para fechar</p>
   <p class="loot-hint so-toque">toque num item da caixa para pegar · arraste para mover</p>
+  <p class="loot-hint so-controle">direcional escolhe · <i class="glifo face">A</i> pega o item · <i class="glifo face">B</i> fecha</p>
   <button id="lootFechar" class="loot-fechar">FECHAR ✕</button>
 </div>
 <div id="dragGhost" class="hidden"></div>

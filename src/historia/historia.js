@@ -4,6 +4,7 @@ import { Cinematica } from './cinematica.js';
 import { criarFase1 } from './fase1.js';
 import { definirChao } from '../grenade.js';
 import { COLETE, danoComColete } from '../mapgen.js';
+import { rotulo } from '../glifos.js';
 
 // Modo historia. Igual ao SoloGame, finge ser o servidor: recebe as mensagens
 // que o jogo mandaria pela rede e devolve os mesmos eventos. Por cima disso
@@ -125,7 +126,8 @@ export class Historia {
     for (const e of this.efeitos) { this.scene.remove(e.obj); e.obj.material.dispose(); e.obj.geometry?.dispose(); }
     this.efeitos.length = 0;
     this.world.sairHistoria();
-    definirChao(null);
+    // de volta ao campo o chao continua vindo do mundo (casa e predio tem andar)
+    definirChao((x, z, y) => this.world.alturaChao(x, z, y));
     document.body.classList.remove('historia', 'cinema');
     this.el.objetivo.classList.add('hidden');
     this.el.fala.classList.add('hidden');
@@ -429,7 +431,7 @@ export class Historia {
     this.el.prompt.classList.toggle('hidden', !perto);
     if (perto) {
       this.el.prompt.innerHTML = this.limpo
-        ? '<b>E</b> entrar no helicoptero'
+        ? `${rotulo('KeyE', 'E')} entrar no helicoptero`
         : '<span>elimine os invasores do terraco</span>';
     }
 

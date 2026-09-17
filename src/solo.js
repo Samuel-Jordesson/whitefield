@@ -413,6 +413,7 @@ export class SoloGame {
       }
     }
     for (const b of this.world.boxColliders) {
+      if (b.y0 > 0.6) continue;             // parede de andar de cima: o bot anda no terreo
       const sin = Math.sin(b.rot), cos = Math.cos(b.rot);
       const px = bot.pos.x - b.x, pz = bot.pos.z - b.z;
       const lx = px * cos - pz * sin, lz = px * sin + pz * cos;

@@ -104,15 +104,17 @@ export function guardaRoupa(k, { x, y, z, w = 1.6, d = 0.6, h = 2.1, frente = '-
   }
 }
 
-export function estante(k, { x, y, z, w = 1.2, d = 0.35, h = 1.8, eixo = 'x', seed = 1 }) {
+// `grosso` junta os livros em volumes maiores: menos pecas para desenhar,
+// util onde tem estante demais (a casa e o predio do mapa)
+export function estante(k, { x, y, z, w = 1.2, d = 0.35, h = 1.8, eixo = 'x', seed = 1, grosso = 1, prateleiras = 4 }) {
   const W = eixo === 'x' ? w : d, D = eixo === 'x' ? d : w;
   k.caixa({ x, y, z, w: W, h, d: D, mat: 'madeira', contorno: true });
   let a = seed;
   const r = () => ((a = (a * 9301 + 49297) % 233280) / 233280);
-  for (let prat = 0; prat < 4; prat++) {
+  for (let prat = 0; prat < prateleiras; prat++) {
     let p = -w / 2 + 0.06;
     while (p < w / 2 - 0.12) {
-      const lw = 0.04 + r() * 0.05, lh = 0.2 + r() * 0.15;
+      const lw = (0.04 + r() * 0.05) * grosso, lh = 0.2 + r() * 0.15;
       const px = eixo === 'x' ? x + p : x, pz = eixo === 'x' ? z : z + p;
       k.caixa({
         x: px + (eixo === 'x' ? 0 : (d / 2 + 0.01)), y: y + 0.08 + prat * 0.44, z: pz + (eixo === 'x' ? (d / 2 + 0.01) : 0),
